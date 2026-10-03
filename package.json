@@ -1,0 +1,15 @@
+{
+  "name": "snap-and-sell",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup-agent": "node --env-file=.env scripts/setup-agent.ts",
+    "test:pricing": "node scripts/test-pricing.ts",
+    "smoke": "node --env-file=.env scripts/smoke.ts",
+    "start": "node --env-file=.env src/server.ts"
+  },
+  "dependencies": {
+    "@zoowork-ai/sdk": "^0.10.2",
+    "qrcode": "^1.5.4"
+  }
+}

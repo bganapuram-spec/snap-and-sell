@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snap &amp; Sell — Architecture</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { padding: 22px 16px 60px; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; }
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+  .diagram { padding: 22px 18px; }
+  .row { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .arrow { text-align: center; color: var(--muted); font-size: 20px; line-height: 1; margin: 6px 0; }
+  .arrow small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+  .node {
+    border-radius: 16px; padding: 10px 14px; min-width: 150px; max-width: 230px; text-align: center; cursor: pointer;
+    border: 2px solid var(--line); background: var(--card); transition: transform .12s, box-shadow .12s; font: inherit; color: var(--ink);
+  }
+  .node:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .node.sel { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .node .n { font-family: var(--display); font-weight: 800; font-size: 15px; line-height: 1.15; }
+  .node .k { font-size: 11px; font-weight: 800; letter-spacing: .08em; margin-top: 4px; }
+  .t-human { background: #fff7e6; border-color: #f1d8a8; } .t-human .k { color: #a65a10; }
+  .t-llm { background: #f4fbdc; border-color: var(--lime-deep); } .t-llm .k { color: #5c7a00; }
+  .t-code { background: #1d1d1b; border-color: #1d1d1b; color: #fff; } .t-code .k { color: var(--lime); }
+  .t-data { background: #eaf0ff; border-color: #c4d3fb; } .t-data .k { color: #3b5bb5; }
+  .t-ext { background: #fdebe7; border-color: #f2c2b8; } .t-ext .k { color: var(--bad); }
+  .t-ui { background: #f1eee4; border-color: var(--line); } .t-ui .k { color: var(--muted); }
+  .group { border: 2px dashed var(--line); border-radius: 22px; padding: 14px; margin: 4px 0; }
+  .group > .eyebrow { text-align: center; margin-bottom: 10px; }
+  .panel { position: sticky; top: 16px; }
+  .panel h2 { font-size: 24px; margin: 4px 0 6px; }
+  .panel dl { margin: 12px 0 0; }
+  .panel dt { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 12px; }
+  .panel dd { margin: 3px 0 0; font-size: 14px; }
+  .panel dd ul { margin: 0; padding-left: 18px; }
+  .panel code { background: #f1eee4; padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 3px 8px; border-radius: 99px; margin: 2px 4px 2px 0; }
+  .b-real { background: #dcf1e3; color: var(--good); }
+  .b-retrieved { background: #fff1e0; color: #a65a10; }
+  .b-llm { background: #f4fbdc; color: #5c7a00; }
+  .b-synthetic { background: #fde2de; color: var(--bad); }
+  .b-hardcoded { background: #ebe7da; color: var(--ink-2); }
+  .b-merchant { background: #fff7e6; color: #a65a10; }
+  .b-binding { background: #1d1d1b; color: var(--lime); }
+  .yes { color: var(--bad); font-weight: 800; } .no { color: var(--good); font-weight: 800; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px dashed var(--line); vertical-align: top; }
+  th { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .cols2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .cols2 h3 { font-size: 16px; margin-bottom: 6px; }
+  .cols2 ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .live { font-size: 13px; }
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } .cols2 { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <div class="brand"><span class="spark">S</span>SNAP &amp; SELL</div>
+      <h1 style="margin-top:8px">How it works</h1>
+      <p class="muted" style="margin:6px 0 0">Click any box. Every label says where the data really comes from.</p>
+    </div>
+    <div class="legend">
+      <span class="node t-human" style="min-width:0;padding:5px 10px;cursor:default"><span class="k">PERSON</span></span>
+      <span class="node t-llm" style="min-width:0;padding:5px 10px;cursor:default"><span class="k">LLM (ZOOWORK)</span></span>
+      <span class="node t-code" style="min-width:0;padding:5px 10px;cursor:default"><span class="k">DETERMINISTIC CODE</span></span>
+      <span class="node t-data" style="min-width:0;padding:5px 10px;cursor:default"><span class="k">DATA</span></span>
+      <span class="node t-ext" style="min-width:0;padding:5px 10px;cursor:default"><span class="k">EXTERNAL</span></span>
+      <span class="node t-ui" style="min-width:0;padding:5px 10px;cursor:default"><span class="k">SCREEN</span></span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="card diagram" id="diagram"></div>
+    <div class="card panel" id="panel"></div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>Who decides what</h2>
+    <div class="cols2" style="margin-top:12px">
+      <div><h3>LLM can</h3><ul>
+        <li>Identify the item and describe its visible condition from the photo</li>
+        <li>Search the web and pick comparable listings</li>
+        <li>Suggest a list price (the merchant confirms or edits it)</li>
+        <li>Write the listing text</li>
+        <li>Choose how to phrase every buyer reply</li>
+        <li>Read the buyer's message and pass the offer amount to <code>evaluate_offer</code></li>
+        <li>Decide when to forward a question to the owner, or flag a manipulation attempt</li>
+      </ul></div>
+      <div><h3>LLM cannot</h3><ul>
+        <li>Accept, approve, or sell below what <code>evaluate_offer</code> allows</li>
+        <li>See the floor or auto-accept price (never sent to it)</li>
+        <li>Choose which item or buyer a tool call affects (the session binds that)</li>
+        <li>Invent competing offers: it only sees real ones from the offer book</li>
+        <li>Mark items sold or approve exceptions</li>
+        <li>Use a sandbox, shell, or the web while negotiating (tools denied)</li>
+      </ul></div>
+      <div><h3>Code controls</h3><ul>
+        <li>accept / counter / escalate decision and every counter amount</li>
+        <li>Counters only go down, in human-sized steps, never below auto-accept</li>
+        <li>Lowball detection (≤ 50% of list)</li>
+        <li>Offer book and who is highest</li>
+        <li>Single sale per item (status flips once; stale approvals rejected)</li>
+        <li>Floor and auto-accept defaults (85% / 93%)</li>
+        <li>What the projector and buyers may see (no floor, no buyer identities to other buyers)</li>
+      </ul></div>
+      <div><h3>Merchant controls</h3><ul>
+        <li>Title, description, list price, floor, auto-accept before going live</li>
+        <li>Accept, counter, or decline offers in the approval range</li>
+        <li>Answers to forwarded questions</li>
+        <li>Reset the demo</li>
+      </ul></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:14px 0 0">Known gap: the LLM is <i>told</i> to quote only prices from <code>evaluate_offer</code>. Code can't stop it from typing a lower number; only a deal confirmed by <code>evaluate_offer</code> or the owner counts as a sale.</p>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>Data map</h2>
+    <div style="overflow-x:auto;margin-top:10px">
+      <table id="datamap"><thead><tr><th>Value</th><th>Source</th><th>Status</th><th>Stored where</th><th>Used by</th></tr></thead><tbody></tbody></table>
+    </div>
+    <p class="live muted" id="live"></p>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+const B = (k, t) => `<span class="badge b-${k}">${t || k.toUpperCase()}</span>`
+
+const NODES = {
+  merchant: { t: 'human', n: 'Merchant', k: 'PERSON',
+    does: 'Snaps a photo, reviews the AI draft, sets price rules, approves close calls.',
+    inputs: ['Item in hand', 'Own judgment'], output: ['Photo', 'Edited title/description/prices', 'Approval decisions'],
+    source: 'The shop owner', status: B('real'), file: 'public/merchant.html (owner app, token-protected)' },
+  photo: { t: 'code', n: 'Photo intake', k: 'CODE',
+    does: 'Browser downsizes the photo to ≤1024px JPEG; server starts a listing job and tracks the 4 research steps from real agent events.',
+    inputs: ['Camera or uploaded image'], output: ['Listing job (status + steps)', 'Photo data URL'],
+    source: 'Merchant', status: B('real'), file: 'public/merchant.html (downscale), src/server.ts startJob()' },
+  vision: { t: 'llm', n: 'Vision + condition', k: 'LLM · LISTER AGENT',
+    does: 'The ZooWork lister agent calls get_item_photo, which returns the image to the model. It identifies item, brand, era, material, size (only if a tag is readable), condition grade, flaws and highlights.',
+    inputs: ['Photo (via custom tool image block)'], output: ['title, description, facts { condition, flaws[], highlights[], brand, era, material, size }', 'staff_notes'],
+    source: 'Model: Claude Sonnet 5.5 via ZooWork Managed Agents', status: B('llm', 'LLM-GENERATED') + ' not merchant-confirmed yet', file: 'src/zoowork.ts (LISTER, runListing, parseDraft)', llm: true },
+  research: { t: 'ext', n: 'Product research', k: 'EXTERNAL · WEB SEARCH',
+    does: "Lister uses ZooWork's built-in web_search to find comparable USED listings (eBay, Depop, Poshmark, Grailed) and extracts up to 8 prices.",
+    inputs: ['Item identity from vision'], output: ['market_comps[] { title, price, source site }'],
+    source: 'Live web search through ZooWork', status: B('retrieved') + ' asking prices, not confirmed sales. Source URLs are not stored yet.', file: 'src/zoowork.ts (LISTER persona), src/server.ts (summarize → market)', llm: true },
+  history: { t: 'data', n: 'Real sold prices', k: 'DATA',
+    does: 'Ranked keyword search over real past sales (brand match bonus, needs half the words to match). Uses the shop’s own sales file if present; otherwise 70,511 real US resale sales from the public Mercari dataset (2018). Sales made in the app are added live.',
+    inputs: ['Keywords'], output: ['matches[], min/median/max'],
+    source: 'data/past_sales.csv (shop) → data/resale_sales.csv (Mercari 2018, Hugging Face: multabench/core-text-reg-mercari-marketplace) → sample', status: '<span id="histStatus"></span>', file: 'src/pricing.ts searchSales(), src/store.ts loadPastSales()' },
+  knowledge: { t: 'data', n: 'Item knowledge', k: 'DATA',
+    does: 'Everything known about one item, gathered before it goes live. The sales agent reads this, not just the description.',
+    inputs: ['Vision facts', 'Market summary', 'Shop history', 'Merchant edits'], output: ['Item { facts, market, history, listPrice, floor, autoAcceptAt }'],
+    source: 'Lister + research + merchant', status: B('llm', 'LLM') + B('retrieved') + B('merchant', 'MERCHANT-SET'), file: 'src/pricing.ts (Item, ItemFacts), src/server.ts POST /api/items' },
+  pricing: { t: 'code', n: 'Pricing engine', k: 'CODE · BINDING',
+    does: 'Suggested price comes from the lister; shop rules turn it into floor (85%) and auto-accept (93%), which the merchant can edit. During negotiation, evaluate_offer is the only thing that can say yes.',
+    inputs: ['Suggested price', 'Merchant edits', 'Shop rule defaults'], output: ['listPrice, autoAcceptAt, floor'],
+    source: 'LLM suggestion + merchant confirmation + hardcoded defaults', status: B('binding') + B('hardcoded', 'DEFAULTS HARDCODED'), file: 'src/pricing.ts applyShopRules(), SHOP_RULES', llmPrice: false },
+  listing: { t: 'data', n: 'Live listing', k: 'DATA',
+    does: 'The published item with status live → sold. Snapshotted to disk so it survives restarts.',
+    inputs: ['Item knowledge', 'Prices'], output: ['Public item (never includes floor/auto-accept)'],
+    source: 'Merchant publish', status: B('real'), file: 'src/store.ts (items, saveNow → data/state.json), src/server.ts publicItem()' },
+  buyer: { t: 'ui', n: 'Buyer phone', k: 'SCREEN',
+    does: 'Scan the QR, chat, use quick-offer buttons, see real competing offers, take counters.',
+    inputs: ['Buyer messages'], output: ['Messages to the sales agent'],
+    source: 'Real buyers (audience)', status: B('real'), file: 'public/buyer.html (marketplace /shop not built yet)' },
+  agent: { t: 'llm', n: 'ZooWork sales agent', k: 'LLM · NEGOTIATOR AGENT',
+    does: 'One ZooWork session per buyer. Talks like a shopkeeper, answers from item knowledge, and must call evaluate_offer for any number. Web, shell and file tools are denied.',
+    inputs: ['Buyer message', 'Tool results'], output: ['Reply text', 'Tool calls'],
+    source: 'Claude Sonnet 5.5 via ZooWork Managed Agents', status: B('llm', 'LLM-GENERATED TEXT'), file: 'src/zoowork.ts (NEGOTIATOR persona + tools, runBuyerTurn)', llm: true },
+  tk: { t: 'data', n: 'get_item_details', k: 'TOOL → ITEM KNOWLEDGE',
+    does: 'Gives the agent title, description, list price, condition facts, market range, shop history. Never floor or auto-accept.',
+    inputs: ['Session (bound item)'], output: ['Item facts for the agent'],
+    source: 'Item knowledge', status: B('real') + ' as stored', file: 'src/zoowork.ts itemDetailsForBuyer()' },
+  book: { t: 'code', n: 'Offer book', k: 'CODE',
+    does: 'Each buyer’s latest real offer per item. The agent and buyer UI only see amounts, never who. If no other offer exists, the agent is told so and may not imply competition.',
+    inputs: ['Offers recorded by evaluate_offer'], output: ['highestOtherOffer, youAreHighest'],
+    source: 'Real buyer sessions', status: B('real'), file: 'src/store.ts offerBook(), competitionFor()' },
+  rules: { t: 'human', n: 'Merchant rules', k: 'MERCHANT-SET',
+    does: 'Per-item floor and auto-accept price.',
+    inputs: ['Merchant'], output: ['floor, autoAcceptAt'],
+    source: 'Merchant (defaults 85% / 93% of list)', status: B('merchant', 'MERCHANT-SET') + B('binding'), file: 'public/merchant.html price screen, src/pricing.ts' },
+  evaluate: { t: 'code', n: 'evaluate_offer()', k: 'CODE · THE ONLY YES',
+    does: '≥ list → sell at list. ≥ auto-accept → sell. ≥ floor → ask the owner. Below floor → counter, stepping down (smaller steps for lowballs), never below auto-accept, never back up. Owner counters are honored.',
+    inputs: ['Offer amount', 'Item rules', 'This buyer’s last counter', 'Owner counter'], output: ['accept | needs_owner_approval | counter | invalid | unavailable'],
+    source: 'Pure function, unit-tested', status: B('binding'), file: 'src/pricing.ts evaluateOffer(), scripts/test-pricing.ts', llmPrice: false },
+  counter: { t: 'code', n: 'Counter', k: 'CODE', does: 'Agent must offer exactly counterPrice.', inputs: ['evaluate_offer'], output: ['counterPrice, lowball, bestPrice'], source: 'evaluate_offer', status: B('binding'), file: 'src/pricing.ts' },
+  accept: { t: 'code', n: 'Accept → SOLD', k: 'CODE', does: 'Item flips to sold once. Any later offer or stale approval gets "unavailable" / 409.', inputs: ['evaluate_offer accept or owner accept'], output: ['Sold item, sale price, buyer'], source: 'evaluate_offer', status: B('binding'), file: 'src/zoowork.ts, src/server.ts /api/approvals' },
+  escalate: { t: 'code', n: 'Escalate', k: 'CODE', does: 'Creates an approval with the evidence and a deterministic recommendation built from the offer book.', inputs: ['Offer between floor and auto-accept'], output: ['Approval { evidence, recommendation, suggestedCounter }'], source: 'evaluate_offer + offer book', status: B('binding'), file: 'src/zoowork.ts offerEvidence(), src/server.ts approvalAdvice()' },
+  owner: { t: 'human', n: 'Owner approval', k: 'PERSON',
+    does: 'Decline, counter (never below floor), or accept. The recommendation is advice; the owner decides.',
+    inputs: ['Approval + evidence'], output: ['accepted / countered / declined'], source: 'Merchant', status: B('real'), file: 'public/merchant.html overlay, src/server.ts POST /api/approvals/:id' },
+  log: { t: 'data', n: 'Activity + persistence', k: 'DATA',
+    does: 'Every business event (listed, offer, highest, question, rule protected, approval, sold) goes to the activity log; everything is snapshotted to data/state.json.',
+    inputs: ['All of the above'], output: ['Owner feed (with evidence)', 'Projector feed (no floor)'],
+    source: 'Server', status: B('real'), file: 'src/store.ts logEvent(), saveNow(), loadState(); public/stage.html' },
+}
+
+const n = (id) => `<button class="node t-${NODES[id].t}" data-id="${id}"><div class="n">${NODES[id].n}</div><div class="k">${NODES[id].k}</div></button>`
+const arrow = (label) => `<div class="arrow">↓${label ? `<small>${label}</small>` : ''}</div>`
+
+$('diagram').innerHTML = `
+  <div class="row">${n('merchant')}</div>${arrow('photo')}
+  <div class="row">${n('photo')}</div>${arrow()}
+  <div class="group"><div class="eyebrow">Listing job · ~20–35s</div>
+    <div class="row">${n('vision')}</div>${arrow()}
+    <div class="row">${n('research')}${n('history')}</div>
+  </div>${arrow()}
+  <div class="row">${n('knowledge')}</div>${arrow()}
+  <div class="row">${n('pricing')}</div>${arrow('merchant confirms')}
+  <div class="row">${n('listing')}</div>${arrow('QR')}
+  <div class="row">${n('buyer')}</div>${arrow('one session per buyer')}
+  <div class="group"><div class="eyebrow">Negotiation</div>
+    <div class="row">${n('agent')}</div>${arrow('tools')}
+    <div class="row">${n('tk')}${n('book')}${n('rules')}</div>${arrow()}
+    <div class="row">${n('evaluate')}</div>${arrow()}
+    <div class="row">${n('counter')}${n('accept')}${n('escalate')}</div>
+  </div>${arrow()}
+  <div class="row">${n('owner')}</div>${arrow()}
+  <div class="row">${n('log')}</div>`
+
+function show(id) {
+  const d = NODES[id]
+  document.querySelectorAll('.node[data-id]').forEach((x) => x.classList.toggle('sel', x.dataset.id === id))
+  const li = (a) => '<ul>' + a.map((x) => `<li>${x}</li>`).join('') + '</ul>'
+  $('panel').innerHTML = `
+    <div class="eyebrow">${d.k}</div><h2>${d.n}</h2>
+    <p style="margin:0">${d.does}</p>
+    <dl>
+      <dt>Input</dt><dd>${li(d.inputs)}</dd>
+      <dt>Output</dt><dd>${li(d.output)}</dd>
+      <dt>Data comes from</dt><dd>${d.source}</dd>
+      <dt>Real / synthetic / hardcoded</dt><dd>${d.status}</dd>
+      ${d.llm !== undefined || d.llmPrice !== undefined ? `<dt>LLM controls price?</dt><dd>${d.llmPrice === false || id === 'agent' || id === 'vision' || id === 'research' ? '<span class="no">NO</span>' + (id === 'vision' || id === 'research' ? ' (it only suggests; merchant confirms, code enforces)' : '') : ''}</dd>` : ''}
+      <dt>Implemented in</dt><dd><code>${d.file}</code></dd>
+    </dl>`
+  if (id === 'history') $('histStatus').innerHTML = histStatus
+}
+$('diagram').onclick = (e) => { const b = e.target.closest('.node'); if (b) show(b.dataset.id) }
+
+const ROWS = [
+  ['Condition, flaws, highlights', 'Lister vision (LLM)', B('llm', 'LLM') + ' not merchant-confirmed', 'Item.facts → data/state.json', 'Price screen, sales agent, evidence panel'],
+  ['Brand / era / material / size', 'Lister vision (LLM); size only if tag readable', B('llm', 'LLM'), 'Item.facts', 'Sales agent answers'],
+  ['Original retail (MSRP)', 'Not collected yet', B('synthetic', 'UNAVAILABLE'), '—', '—'],
+  ['Market comps', 'ZooWork web_search, extracted by LLM', B('retrieved') + ' asking prices, no URLs yet', 'Item.market (count/min/max/median)', 'Price screen, sales agent, evidence'],
+  ['Real sold prices', 'Mercari public dataset (or shop CSV)', '<span id="histBadge"></span>', 'data/*.csv (read-only)', 'Lister, price screen, sales agent'],
+  ['Suggested price', 'Lister (LLM)', B('llm', 'LLM SUGGESTION'), 'Listing job', 'Price screen'],
+  ['Asking price', 'Merchant confirms/edits', B('merchant', 'MERCHANT-SET'), 'Item.listPrice', 'Everyone'],
+  ['Floor price', 'Merchant (default 85% of list)', B('merchant', 'MERCHANT-SET') + B('binding'), 'Item.floor', 'evaluate_offer, owner only'],
+  ['Auto-accept price', 'Merchant (default 93% of list)', B('merchant', 'MERCHANT-SET') + B('binding'), 'Item.autoAcceptAt', 'evaluate_offer, owner only'],
+  ['Buyer offers', 'Buyer messages → evaluate_offer', B('real'), 'BuyerSession.lastOffer', 'Offer book'],
+  ['Current highest offer', 'Offer book over real sessions', B('real'), 'computed', 'Agent, buyer banner, owner advice'],
+  ['Buyer questions', 'Agent → ask_owner', B('real'), 'Activity log', 'Owner feed'],
+  ['Sale price & buyer', 'evaluate_offer accept or owner accept', B('real') + B('binding'), 'Item.soldPrice / soldTo', 'Owner, projector'],
+  ['Conversation transcript', 'ZooWork session', B('real'), 'ZooWork (cursor in BuyerSession)', 'Sales agent memory'],
+]
+
+let histStatus = ''
+fetch('/api/architecture').then((r) => r.json()).then((a) => {
+  histStatus = a.historyKind === 'shop' ? B('real', 'REAL SHOP DATA') : a.historyKind === 'public' ? B('real', 'REAL PUBLIC DATA') + ` ${a.historyCount.toLocaleString()} Mercari sales (2018). Not this shop's own sales; 2018 prices run low.` : B('synthetic', 'SYNTHETIC SAMPLE DATA')
+  $('datamap').querySelector('tbody').innerHTML = ROWS.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
+  $('histBadge').innerHTML = histStatus
+  $('live').textContent = `Live: model ${a.model} · negotiator ${a.negotiatorId} · lister ${a.listerId} · ${a.items} items · ${a.buyerSessions} buyer sessions · state persisted to data/state.json`
+  show('evaluate')
+})
+</script>
+</body>
+</html>

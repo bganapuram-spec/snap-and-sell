@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snap &amp; Sell — Haggle</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { min-height: 100dvh; display: flex; flex-direction: column; max-width: 560px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; }
+  .hero { margin: 0 16px; display: grid; grid-template-columns: 92px 1fr; gap: 14px; align-items: center; }
+  .hero img { width: 92px; height: 92px; object-fit: cover; border-radius: 18px; background: #ddd; }
+  .hero .t { font-weight: 700; font-size: 17px; line-height: 1.25; }
+  .hero .price { font-size: 40px; margin-top: 6px; }
+  #join { padding: 22px 16px; }
+  #chat { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .who { font-size: 11px; font-weight: 800; letter-spacing: .1em; color: var(--muted); margin-bottom: 3px; }
+  .b { max-width: 84%; padding: 11px 14px; border-radius: 20px; font-size: 16px; white-space: pre-wrap; animation: pop .3s cubic-bezier(.2, 1.4, .4, 1) both; }
+  .me { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 6px; font-weight: 600; }
+  .bot { align-self: flex-start; background: var(--surface); border-bottom-left-radius: 6px; }
+  .typing { color: var(--muted); }
+  .typing span { display: inline-block; animation: bounce 1s infinite; }
+  .typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 50% { transform: translateY(-4px); } }
+  .shield { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: .08em; background: #fff; color: var(--bad); border: 1px solid var(--bad); padding: 3px 9px; border-radius: 99px; }
+  .offer-card { align-self: stretch; text-align: center; padding: 18px; animation: pop .4s cubic-bezier(.2, 1.5, .4, 1) both; }
+  .offer-card .price { font-size: 56px; margin: 4px 0 12px; }
+  .offer-card .row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+  .close { align-self: stretch; text-align: center; padding: 22px; background: var(--surface); }
+  .close .big { font-size: 44px; }
+  .dots span { display: inline-block; width: 8px; height: 8px; margin: 0 3px; border-radius: 50%; background: var(--warn); animation: bounce 1s infinite; }
+  .dots span:nth-child(2) { animation-delay: .15s; } .dots span:nth-child(3) { animation-delay: .3s; }
+  footer { position: sticky; bottom: 0; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 75%, transparent); }
+  .chips { display: flex; gap: 8px; margin-bottom: 10px; }
+  .chips button { flex: 1; background: #fff; color: var(--ink); border: 1.5px solid #cacacb; padding: 12px 0; font-size: 16px; }
+  .chips button:hover { border-color: var(--ink); background: #fff; }
+  .compose { display: flex; gap: 8px; }
+  .compose button { flex: 0 0 auto; }
+  .ended { text-align: center; font-weight: 700; padding: 14px; }
+  .comp { margin: 12px 16px 0; padding: 12px 14px; border-radius: 16px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 10px; animation: pop .35s cubic-bezier(.2, 1.4, .4, 1) both; }
+  .comp.hot { background: var(--ink); color: #fff; }
+  .comp.top { background: var(--lime); color: var(--ink); }
+  .comp small { display: block; font-weight: 600; opacity: .8; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/shop" class="brand" style="text-decoration:none;color:inherit"><span class="spark">S</span>SNAP &amp; SELL</a>
+  <span id="livePill" class="live-dot">LIVE</span>
+</header>
+
+<div class="hero card" style="padding:12px">
+  <img id="photo" alt="" hidden>
+  <div><div class="t" id="title">Loading…</div><div class="price" id="price"></div></div>
+</div>
+
+<section id="join" hidden>
+  <h1 style="font-size:clamp(32px,9vw,44px)">Think you can beat the agent?</h1>
+  <p class="muted" style="font-size:17px">SellBot runs this shop’s haggling. Talk it down as far as you can.</p>
+  <label for="name">Your name (shows on the big screen)</label>
+  <input id="name" maxlength="24" placeholder="e.g. Sam" autocomplete="off">
+  <div style="height:14px"></div>
+  <button id="start" class="btn-lime btn-big" style="width:100%">Start haggling →</button>
+  <p class="error" id="joinErr"></p>
+</section>
+
+<div id="comp" class="comp" hidden></div>
+<main id="chat" hidden></main>
+
+<footer id="composer" hidden>
+  <div class="chips" id="chips"></div>
+  <form id="form" class="compose">
+    <input id="text" maxlength="500" placeholder="Or type your offer…" autocomplete="off" enterkeyhint="send">
+    <button id="send" class="btn-lime">Offer →</button>
+  </form>
+  <p class="error" id="sendErr"></p>
+</footer>
+
+<script src="/app.js"></script>
+<script>
+const itemId = location.pathname.split('/')[2]
+const key = 'snapsell:' + itemId
+let sessionId = null
+try { sessionId = localStorage.getItem(key) } catch {}
+let item = null
+let busy = false
+let waitingApproval = null // price awaiting owner
+let ended = false
+
+function renderItem(i) {
+  item = i
+  $('title').textContent = i.title
+  $('price').textContent = money(i.listPrice)
+  if (i.hasPhoto) { $('photo').src = `/api/items/${i.id}/photo`; $('photo').hidden = false }
+  const chips = quickOffers(i.listPrice)
+  $('chips').replaceChildren(...chips.map((v) => el('button', { type: 'button', textContent: money(v), onclick: () => send(`I'll give you ${money(v)}.`, `${money(v)}. Final offer `) })))
+}
+
+const scroll = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+
+function botBubble(text, opts = {}) {
+  const b = el('div', { className: 'b bot' }, el('div', { className: 'who', textContent: 'THE SHOP · AI AGENT' }), el('div', { textContent: text }),
+    opts.protected ? el('div', { className: 'shield', textContent: 'SHOP RULES PROTECTED' }) : null,
+    opts.askedOwner ? el('div', { className: 'shield', style: 'background:#e3e9fb;color:#3b5bb5', textContent: 'SENT TO THE OWNER' }) : null)
+  $('chat').append(b); scroll(); return b
+}
+function meBubble(text) { const b = el('div', { className: 'b me', textContent: text }); $('chat').append(b); scroll(); return b }
+
+function counterCard(price) {
+  document.querySelectorAll('.offer-card').forEach((c) => c.remove())
+  const card = el('div', { className: 'card offer-card' },
+    el('div', { className: 'eyebrow', textContent: 'SellBot’s offer' }),
+    el('div', { className: 'price', textContent: money(price) }),
+    el('div', { className: 'row' },
+      el('button', { className: 'btn-lime btn-big', textContent: 'DEAL ', onclick: () => { card.remove(); send(`Deal! I'll take it at ${money(price)}.`, `Deal at ${money(price)} `) } }),
+      el('button', { className: 'btn-ghost', textContent: 'Counter again', onclick: () => { card.remove(); $('text').focus() } })))
+  $('chat').append(card); scroll()
+}
+
+function closeCard(price) {
+  document.querySelectorAll('.offer-card').forEach((c) => c.remove())
+  waitingApproval = price
+  $('chat').append(el('div', { className: 'card close', id: 'closeCard' },
+    el('div', { className: 'big', textContent: '' }),
+    el('h2', { textContent: 'You’re getting close.' }),
+    el('p', { style: 'margin:8px 0', textContent: `${money(price)} needs the shop owner’s approval.` }),
+    el('div', { className: 'muted', style: 'font-weight:700', textContent: 'Asking them now' }),
+    el('div', { className: 'dots', style: 'margin-top:10px' }, el('span'), el('span'), el('span'))))
+  scroll()
+}
+
+function dealOverlay(price, sub) {
+  ended = true
+  confetti()
+  document.body.append(el('div', { className: 'overlay' }, el('div', { className: 'card' },
+    el('div', { style: 'font-size:56px', textContent: '' }),
+    el('h2', { textContent: 'DEAL!', style: 'font-size:34px' }),
+    el('div', { className: 'price', style: 'font-size:80px;margin:6px 0', textContent: money(price) }),
+    el('p', { style: 'font-weight:700', textContent: sub }),
+    el('p', { className: 'muted', textContent: 'Pick it up at the Snap & Sell booth ' }))))
+  endChat()
+}
+
+function endChat(text) {
+  ended = true
+  $('composer').replaceChildren(el('div', { className: 'ended card', textContent: text || 'Deal closed. Thanks for haggling!' }))
+}
+
+async function send(text, display) {
+  if (busy || ended || !text.trim()) return
+  busy = true
+  $('sendErr').textContent = ''
+  $('send').disabled = true
+  meBubble(display || text)
+  const typing = el('div', { className: 'b bot typing' }, el('span', { textContent: '●' }), el('span', { textContent: '●' }), el('span', { textContent: '●' }))
+  $('chat').append(typing); scroll()
+  try {
+    const r = await api(`/api/sessions/${sessionId}/messages`, { method: 'POST', body: JSON.stringify({ text }) })
+    typing.remove()
+    renderItem(r.item)
+    botBubble(r.reply || '…', { protected: r.protected, askedOwner: r.askedOwner })
+    renderCompetition(r.competition)
+    const d = r.decision
+    if (d?.decision === 'counter') counterCard(d.counterPrice)
+    if (d?.decision === 'needs_owner_approval') closeCard(d.price)
+    if (d?.decision === 'accept') dealOverlay(d.price, firstOfferLine(d.price))
+    if (d?.decision === 'unavailable' && r.item.status === 'sold') endChat(`Sold to ${r.item.soldTo} for ${money(r.item.soldPrice)}. Better luck next time!`)
+  } catch (e) {
+    typing.remove()
+    $('sendErr').textContent = e.message + ' Try again.'
+  } finally {
+    busy = false
+    $('send').disabled = false
+  }
+}
+
+let firstOffer = null
+let lastHighest = null
+const shownAnswers = new Set()
+function renderCompetition(c) {
+  const box = $('comp')
+  if (!c || ended || (c.yourOffer == null && c.highestOtherOffer == null)) { box.hidden = true; return }
+  box.hidden = false
+  if (c.youAreHighest) {
+    box.className = 'comp top'
+    box.replaceChildren(el('div', {}, 'You’re currently the highest offer', el('small', { textContent: `Your offer ${money(c.yourOffer)}` })))
+  } else if (c.highestOtherOffer != null) {
+    const jumped = lastHighest != null && c.highestOtherOffer > lastHighest
+    box.className = 'comp hot'
+    const beat = Math.floor(c.highestOtherOffer) + 1
+    box.replaceChildren(
+      el('div', {}, jumped ? `${c.highestOtherIsAgent ? 'A buyer agent' : 'Someone'} just came in at ${money(c.highestOtherOffer)}` : `${c.highestOtherIsAgent ? 'A buyer agent ' : 'Another buyer'} offered ${money(c.highestOtherOffer)}`,
+        el('small', { textContent: c.yourOffer != null ? `Your offer ${money(c.yourOffer)}` : 'Make an offer to get in' })),
+      el('button', { className: 'btn-lime', style: 'padding:10px 14px', textContent: `Offer ${money(beat)}`, onclick: () => send(`I'll offer ${money(beat)}.`, `${money(beat)} `) }))
+  }
+  lastHighest = c.highestOtherOffer
+}
+const firstOfferLine = (price) => firstOffer && firstOffer < price ? `You opened at ${money(firstOffer)}. SellBot held the line.` : `Talked down from ${money(item.listPrice)}.`
+
+$('form').onsubmit = (ev) => { ev.preventDefault(); const t = $('text').value; $('text').value = ''; send(t) }
+
+$('start').onclick = async () => {
+  $('start').disabled = true
+  try {
+    const r = await api(`/api/items/${itemId}/buyers`, { method: 'POST', body: JSON.stringify({ name: $('name').value }) })
+    sessionId = r.sessionId
+    try { localStorage.setItem(key, sessionId) } catch {}
+    showChat()
+  } catch (e) { $('joinErr').textContent = e.message; $('start').disabled = false }
+}
+
+const intent = new URLSearchParams(location.search).get('intent')
+function showChat() {
+  $('join').hidden = true
+  $('chat').hidden = false
+  $('composer').hidden = false
+  if (intent === 'ask') { $('text').placeholder = 'Ask anything: condition, size, age…'; $('send').textContent = 'Send →' }
+  if (!$('chat').children.length) botBubble(intent === 'ask' ? 'hey! what do you want to know about it?' : 'hey! yep, still available make me an offer')
+}
+
+async function poll() {
+  try {
+    if (!sessionId) {
+      const r = await api(`/api/items/${itemId}`)
+      renderItem(r.item)
+      $('join').hidden = false
+      if (r.item.status === 'sold') { $('join').replaceChildren(el('div', { className: 'card ended', textContent: `Sold for ${money(r.item.soldPrice)}. You missed this one!` })) }
+      return
+    }
+    const r = await api(`/api/sessions/${sessionId}`)
+    if (!item) renderItem(r.item)
+    firstOffer = r.firstOffer
+    if (ended) return
+    renderCompetition(r.competition)
+    for (const x of r.answers || []) {
+      if (shownAnswers.has(x.id)) continue
+      shownAnswers.add(x.id)
+      $('chat').append(el('div', { className: 'b bot' }, el('div', { className: 'who', textContent: 'FROM THE OWNER' }),
+        el('div', { style: 'font-size:13px;color:var(--muted)', textContent: `You asked: ${x.question}` }), el('div', { textContent: x.answer })))
+      scroll()
+    }
+    const a = r.approval
+    if (waitingApproval && a && a.price === waitingApproval && a.status !== 'pending') {
+      waitingApproval = null
+      document.getElementById('closeCard')?.remove()
+      if (a.status === 'accepted') dealOverlay(a.price, `${firstOffer && firstOffer < a.price ? `You opened at ${money(firstOffer)}. ` : ''}Owner approved ✓`)
+      else if (r.item.status === 'sold') endChat(`Someone else got it for ${money(r.item.soldPrice)}. So close!`)
+      else if (a.status === 'countered') { botBubble(`talked to the owner. they can do ${money(a.counterPrice)} for you.`); counterCard(a.counterPrice) }
+      else botBubble(`The owner passed on ${money(a.price)}. Want to take another shot? `)
+    } else if (!waitingApproval && r.item.status === 'sold') {
+      endChat(r.item.soldTo === r.buyerName ? 'It’s yours!' : `Sold to ${r.item.soldTo} for ${money(r.item.soldPrice)}. Better luck next time!`)
+    }
+  } catch (e) {
+    if (sessionId && /Session not found/.test(e.message)) { try { localStorage.removeItem(key) } catch {}; sessionId = null; location.reload() }
+  }
+}
+
+if (sessionId) {
+  api(`/api/sessions/${sessionId}`).then((r) => {
+    renderItem(r.item); showChat()
+    if (r.approval?.status === 'pending') closeCard(r.approval.price)
+  }).catch(() => { try { localStorage.removeItem(key) } catch {}; sessionId = null; poll() })
+} else poll()
+setInterval(poll, 2500)
+</script>
+</body>
+</html>

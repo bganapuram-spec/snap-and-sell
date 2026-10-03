@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snap &amp; Sell — Shop</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { min-height: 100dvh; }
+  .top { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px 48px; }
+
+  .stepper { display: flex; gap: 6px; overflow-x: auto; padding: 4px 24px 18px; scrollbar-width: none; justify-content: center; }
+  .stepper span { flex: 0 0 auto; font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 6px 11px; border-radius: 99px; background: var(--surface); color: var(--muted); transition: all .3s; }
+  .stepper span.reached { background: var(--ink); color: #fff; }
+  .stepper span.current { background: var(--lime); color: var(--ink); }
+
+  .view { animation: fade .25s ease both; }
+  .tabs { display: flex; gap: 6px; justify-content: center; margin: -4px 0 18px; flex-wrap: wrap; }
+  .tabs button { background: transparent; color: var(--ink-2); border: 1.5px solid var(--line); padding: 8px 14px; font-size: 14px; border-radius: 99px; }
+  .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tabs .badge-n { background: var(--warn); color: #fff; border-radius: 99px; padding: 0 7px; font-size: 12px; margin-left: 4px; }
+  .inv { display: grid; gap: 10px; }
+  .inv-row { display: grid; grid-template-columns: 64px 1.6fr 0.8fr 1.1fr 1fr 1.4fr; gap: 12px; align-items: center; padding: 10px 14px; cursor: pointer; }
+  .inv-row:hover { border-color: var(--ink); }
+  .inv-row img, .inv-row .ph { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: #e9e5d8; }
+  .inv-row .t { font-weight: 700; }
+  .inv-head { display: grid; grid-template-columns: 64px 1.6fr 0.8fr 1.1fr 1fr 1.4fr; gap: 12px; padding: 0 14px; }
+  .st { font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 4px 9px; border-radius: 99px; display: inline-block; }
+  .st-LIVE { background: var(--lime); } .st-NEGOTIATING { background: #ffe1b8; color: #8a4b08; } .st-PENDING { background: var(--warn); color: #fff; }
+  .st-SOLD { background: #dcf1e3; color: var(--good); } .st-PAUSED { background: #ebe7da; color: var(--ink-2); }
+  .detail { display: grid; grid-template-columns: 300px 1fr; gap: 22px; }
+  .detail img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r); background: #e9e5d8; }
+  .chat-log { max-height: 280px; overflow-y: auto; background: #fff; border-radius: 14px; padding: 10px 12px; font-size: 14px; display: grid; gap: 6px; }
+  .chat-log .r-buyer { justify-self: end; background: var(--ink); color: #fff; padding: 6px 10px; border-radius: 12px; max-width: 85%; }
+  .chat-log .r-shop { justify-self: start; background: #fff; border: 1px solid var(--line); padding: 6px 10px; border-radius: 12px; max-width: 85%; }
+  .sold-card { display: grid; grid-template-columns: 120px 1fr 1fr; gap: 18px; }
+  .sold-card img, .sold-card .ph { width: 120px; height: 120px; border-radius: 16px; object-fit: cover; background: #e9e5d8; }
+  .kv { display: grid; grid-template-columns: auto auto; justify-content: space-between; gap: 4px 14px; font-size: 15px; }
+  .kv b { text-align: right; font-variant-numeric: tabular-nums; }
+  @media (max-width: 820px) { .inv-head { display: none; } .inv-row { grid-template-columns: 56px 1fr auto; } .inv-row > :nth-child(n+4) { display: none; } .detail, .sold-card { grid-template-columns: 1fr; } }
+
+  /* Home */
+  .home { text-align: center; padding: 30px 0 10px; }
+  .home p.sub { font-size: 19px; color: var(--ink-2); margin: 10px 0 34px; }
+  .snap {
+    width: min(360px, 84vw); aspect-ratio: 1.15; margin: 0 auto; border-radius: 24px; border: 0;
+    background: var(--ink); color: #fff; display: grid; place-items: center; align-content: center; gap: 14px;
+    font-family: var(--display); font-size: 30px; letter-spacing: .02em; text-transform: uppercase; animation: pulse 2.4s infinite;
+  }
+  .snap .cam { color: var(--lime); }
+  .snap:hover { background: #222; }
+  .shopstats { display: flex; justify-content: center; gap: 22px; margin-top: 34px; color: var(--ink-2); font-weight: 600; flex-wrap: wrap; }
+
+  /* Camera */
+  .camera { background: #000; border-radius: var(--r); overflow: hidden; max-width: 720px; margin: 0 auto; aspect-ratio: 4 / 3; }
+  .camera video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cam-actions { display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+
+  /* Homework */
+  .homework { display: grid; grid-template-columns: 300px 1fr; gap: 28px; align-items: center; max-width: 860px; margin: 20px auto 0; }
+  .homework img, .pricing img.photo { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r); box-shadow: var(--shadow); background: #ddd; }
+  .ready { font-family: var(--display); font-size: 40px; text-transform: uppercase; margin-top: 22px; animation: pop .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+
+  /* Pricing */
+  .pricing { display: grid; grid-template-columns: 320px 1fr; gap: 28px; }
+  .title-in { font-family: var(--display); font-size: 34px; font-weight: 400; text-transform: uppercase; border: 0; background: transparent; padding: 4px 0; letter-spacing: -0.02em; border-bottom: 2px dashed transparent; border-radius: 0; }
+  .title-in:focus { border-bottom-color: var(--line); }
+  .bigprice { display: flex; align-items: baseline; gap: 4px; }
+  .bigprice span, .bigprice input { font-family: var(--display); font-size: 104px; font-weight: 400; line-height: 1; }
+  .bigprice input { border: 0; background: transparent; padding: 0; width: auto; min-width: 2ch; -moz-appearance: textfield; appearance: textfield; }
+  .bigprice input::-webkit-outer-spin-button, .bigprice input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .bigprice input:focus { outline: none; border-bottom: 3px solid var(--lime); }
+  .why { margin-top: 18px; }
+  .bar-row { display: grid; grid-template-columns: 190px 1fr 92px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .bar-row:last-child { border-bottom: 0; }
+  .bar-row .lbl { font-weight: 700; }
+  .bar-row .lbl small { display: block; color: var(--muted); font-weight: 500; font-size: 12px; }
+  .bar-row .val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
+  .track { position: relative; height: 10px; background: #e5e5e5; border-radius: 99px; }
+  .track .range { position: absolute; top: 0; bottom: 0; border-radius: 99px; background: var(--ink); opacity: .85; }
+  .track .tick { position: absolute; top: -6px; width: 6px; height: 22px; margin-left: -3px; border-radius: 3px; background: var(--lime); box-shadow: 0 0 0 2px var(--ink); }
+  .track .floor { position: absolute; top: -5px; width: 4px; height: 22px; margin-left: -2px; border-radius: 3px; background: var(--bad); }
+  .quote { margin-top: 16px; padding: 14px 16px; border-radius: 10px; background: #fff; border-left: 4px solid var(--lime); font-size: 15px; color: var(--ink-2); }
+  .actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+  details summary { cursor: pointer; font-weight: 700; margin-top: 16px; }
+  .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+  /* Live */
+  .live-head { text-align: center; margin: 6px 0 22px; }
+  .live-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
+  .live-item { display: grid; grid-template-columns: 150px 1fr; gap: 18px; align-items: center; }
+  .live-item img { width: 150px; aspect-ratio: 1; object-fit: cover; border-radius: 18px; background: #ddd; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+  .tile { background: #fff; border-radius: 12px; padding: 12px; }
+  .intake { max-width: 760px; margin: 0 auto; }
+  .iq { padding: 14px 0; border-bottom: 1px dashed var(--line); }
+  .iq-l { font-weight: 700; margin-bottom: 8px; }
+  .chipset { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chipset button { background: var(--card); color: var(--ink); border: 1.5px solid var(--line); padding: 9px 14px; border-radius: 99px; font-size: 15px; }
+  .chipset button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .qbox { background: #fff; border: 2px solid var(--ink); }
+  .qitem { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .qitem:last-child { border-bottom: 0; }
+  .qitem .row { display: flex; gap: 8px; margin-top: 6px; }
+  .tray { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+  .tray-ph { position: relative; width: 104px; height: 104px; }
+  .tray-ph img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; background: var(--surface); }
+  .tray-main { position: absolute; left: 6px; bottom: 6px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; }
+  .tray-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; padding: 0; border-radius: 50%; font-size: 16px; line-height: 1; }
+  .thumbs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .thumbs img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; cursor: pointer; background: var(--surface); }
+  .botbox { margin-top: 16px; padding: 16px; border-radius: 12px; background: #fff; border-left: 4px solid var(--lime); }
+  .tile .n { font-family: var(--display); font-size: 30px; }
+  .tile .l { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* Approval + deal */
+  .overlay .card { max-height: 92vh; overflow-y: auto; }
+  .deal-amt { font-family: var(--display); font-size: 88px; font-weight: 400; line-height: 1; margin: 6px 0 12px; }
+  .ledger { text-align: left; margin: 10px 0 20px; }
+  .ledger div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--line); font-weight: 600; }
+  .two { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+  .three { display: grid; grid-template-columns: 1fr 1.5fr 1.2fr; gap: 8px; align-items: stretch; }
+  .three button { padding: 14px 10px; }
+  .ctr { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+  .ctr input { padding: 10px 8px; font-weight: 700; text-align: center; }
+
+  @media (max-width: 820px) {
+    .homework, .pricing, .live-grid { grid-template-columns: 1fr; }
+    .homework img { max-width: 260px; margin: 0 auto; }
+    .bar-row { grid-template-columns: 1fr 80px; }
+    .bar-row .track { grid-column: 1 / -1; grid-row: 2; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .bigprice span, .bigprice input { font-size: 76px; }
+  }
+
+  /* --- Admin chrome (overrides) --- */
+  .top { position: sticky; top: 0; z-index: 20; background: #fff; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 24px; padding: 0 28px; height: 64px; }
+  .brand .admin { font: 600 13px Inter, sans-serif; text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
+  .tabs { display: flex; gap: 26px; justify-content: center; margin: 0; height: 100%; flex-wrap: nowrap; }
+  .tabs button { background: none; border: 0; border-radius: 0; color: var(--ink-2); padding: 0; height: 100%; font: 600 15px Inter, sans-serif; border-bottom: 2px solid transparent; }
+  .tabs button:hover { background: none; color: var(--ink); border-bottom-color: #cacacb; }
+  .tabs button.on { background: none; color: var(--ink); border-bottom-color: var(--ink); }
+  .tabs .badge-n { background: var(--warn); color: #fff; border-radius: 99px; padding: 1px 7px; font-size: 11px; margin-left: 6px; }
+  .top-actions { display: flex; gap: 18px; align-items: center; font-size: 14px; }
+  .toplink { color: var(--ink-2); font-weight: 600; text-decoration: none; }
+  .toplink:hover { color: var(--ink); }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--muted); font: 600 14px Inter, sans-serif; }
+  .linkbtn:hover { background: none; color: var(--bad); }
+  .stepper { padding: 22px 24px 4px; }
+  .stepper[hidden] { display: none; }
+  .wrap { max-width: 1120px; padding: 18px 24px 64px; }
+  .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin: 10px 0 22px; flex-wrap: wrap; }
+  .pagehead h1 { font-size: 44px; }
+  .pagehead .sub { color: var(--muted); margin-top: 6px; font-weight: 500; }
+  /* Inventory table */
+  .inv { display: block; border-top: 1px solid var(--line); }
+  .inv-head, .inv-row { display: grid; grid-template-columns: 56px minmax(0, 2.4fr) 0.8fr 1.1fr 0.9fr 0.7fr 1.5fr; gap: 16px; align-items: center; }
+  .inv-head { padding: 10px 12px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .inv-row { padding: 12px; background: #fff; border-radius: 0; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .12s; }
+  .inv-row:hover { background: var(--surface); }
+  .inv-row img, .inv-row .ph { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--surface); }
+  .inv-row .t { font-weight: 600; font-size: 15px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .inv-row .sub2 { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .inv-row .num { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .inv-row .ai { color: var(--muted); font-size: 14px; }
+  .st { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 4px 9px; border-radius: 99px; display: inline-block; white-space: nowrap; }
+  .st-LIVE { background: #e9f9c4; color: #3d5200; } .st-NEGOTIATING { background: #fff1de; color: #9a4f00; } .st-PENDING { background: var(--warn); color: #fff; }
+  .st-SOLD { background: var(--ink); color: #fff; } .st-PAUSED { background: var(--surface); color: var(--muted); }
+  @media (max-width: 900px) {
+    .top { grid-template-columns: 1fr auto; height: auto; padding: 12px 16px; row-gap: 10px; }
+    .tabs { grid-column: 1 / -1; order: 3; justify-content: flex-start; overflow-x: auto; height: 36px; gap: 20px; }
+    .top-actions .toplink { display: none; }
+    .inv-head { display: none; }
+    .inv-row { grid-template-columns: 56px 1fr auto; }
+    .inv-row > :nth-child(n+5) { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="spark">S</span>SNAP &amp; SELL <span class="admin">Shop</span></div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="top-actions">
+    <span class="live-dot">Open</span>
+    <a href="/shop" target="_blank" class="toplink">Storefront ↗</a>
+    <a href="/stage" target="_blank" class="toplink">Projector ↗</a>
+    <button id="resetBtn" class="linkbtn">Reset demo</button>
+  </div>
+</header>
+<div class="stepper" id="stepper" hidden></div>
+<div class="wrap" id="app"></div>
+<input type="file" id="file" accept="image/*" capture="environment" hidden>
+<input type="file" id="files" accept="image/*" multiple hidden>
+
+<script src="/app.js"></script>
+<script>
+const params = new URLSearchParams(location.search)
+let token = params.get('token')
+try { if (token) localStorage.setItem('snapsell:token', token); else token = localStorage.getItem('snapsell:token') } catch {}
+if (params.has('token')) history.replaceState(null, '', '/merchant' + location.hash)
+const mapi = (path, opts) => api(path, opts, token)
+
+const STEPS = ['SNAP', 'RESEARCH', 'PRICE', 'LIVE', 'HAGGLE', 'PROTECT', 'APPROVE', 'SOLD']
+let view = 'home'
+let state = null // last /api/merchant/state
+let job = null // current listing job
+let stream = null // camera MediaStream
+let seenSold = new Set()
+let dismissedApproval = new Set()
+
+// ---------------- Stepper ----------------
+function stepIndex() {
+  if (view === 'home' || view === 'camera' || view === 'tray') return 0
+  if (view === 'homework') return 1
+  if (view === 'price' || view === 'intake') return 2
+  const item = currentItem()
+  if (!item) return 3
+  if (item.status === 'sold') return 7
+  if (state.approvals.some((a) => a.itemId === item.id && a.status === 'pending')) return 6
+  if (item.stats.rulesProtected > 0) return 5
+  if (item.stats.buyers > 0) return 4
+  return 3
+}
+function renderStepper() {
+  $('stepper').hidden = true
+  const idx = stepIndex()
+  $('stepper').replaceChildren(...STEPS.map((s, i) => el('span', { className: i < idx ? 'reached' : i === idx ? 'current' : '', textContent: s })))
+}
+const currentItem = () => state?.items.at(-1)
+
+// ---------------- Views ----------------
+function go(v) { view = v; if (['live', 'inventory', 'sold', 'activity'].includes(v)) history.replaceState(null, '', '#' + v); render() }
+
+const TABS = [['live', 'Live'], ['inventory', 'Inventory'], ['sold', 'Sold'], ['activity', 'Activity']]
+function renderTabs() {
+  const pending = state?.approvals.filter((a) => a.status === 'pending').length || 0
+  const openQs = (state?.questions || []).filter((q) => q.status === 'open').length
+  const flow = ['home', 'camera', 'tray', 'homework', 'intake', 'price'].includes(view)
+  $('tabs').replaceChildren(
+    el('button', { className: flow ? 'on' : '', textContent: 'Snap', onclick: () => go('home') }),
+    ...TABS.map(([v, label]) => el('button', { className: view === v || (v === 'inventory' && view === 'item') ? 'on' : '', onclick: () => go(v) },
+      label, v === 'inventory' && pending ? el('span', { className: 'badge-n', textContent: pending }) : null,
+      v === 'live' && openQs ? el('span', { className: 'badge-n', style: 'background:#3b5bb5', textContent: '' + openQs }) : null)))
+}
+
+function render() {
+  renderStepper()
+  renderTabs()
+  const app = $('app')
+  if (view !== 'camera') stopCamera()
+  if (view === 'home') app.replaceChildren(homeView())
+  if (view === 'camera') app.replaceChildren(cameraView())
+  if (view === 'tray') app.replaceChildren(trayView())
+  if (view === 'homework') app.replaceChildren(homeworkView())
+  if (view === 'intake') app.replaceChildren(intakeView())
+  if (view === 'price') app.replaceChildren(priceView())
+  if (view === 'live') app.replaceChildren(liveView())
+  if (view === 'inventory') app.replaceChildren(inventoryView())
+  if (view === 'item') app.replaceChildren(itemView())
+  if (view === 'sold') app.replaceChildren(soldView())
+  if (view === 'activity') app.replaceChildren(activityView())
+}
+
+const thumb = (i, cls) => i.hasPhoto ? el('img', { src: `/api/items/${i.id}/photo`, alt: '', className: cls || '' }) : el('div', { className: 'ph' })
+const stPill = (st) => el('span', { className: 'st st-' + st.split(' ')[0], textContent: st })
+const age = (m) => m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`
+
+function pageHead(title, sub, action) {
+  return el('div', { className: 'pagehead' }, el('div', {}, el('h1', { textContent: title }), sub ? el('div', { className: 'sub', textContent: sub }) : null), action || null)
+}
+
+function inventoryView() {
+  const list = state.items.filter((i) => i.status !== 'sold').slice().reverse()
+  const snapBtn = el('button', { textContent: 'Snap new item', onclick: () => go('home') })
+  if (!list.length) return el('div', { className: 'view' }, pageHead('Inventory', 'Nothing listed yet', snapBtn))
+  const live = list.filter((i) => i.status === 'live').length
+  const needs = list.filter((i) => i.displayStatus === 'PENDING APPROVAL').length
+  return el('div', { className: 'view' },
+    pageHead('Inventory', `${list.length} items · ${live} live${needs ? ` · ${needs} need you` : ''}`, snapBtn),
+    el('div', { className: 'inv' },
+      el('div', { className: 'inv-head' }, el('span'), el('span', { textContent: 'Item' }), el('span', { textContent: 'Asking' }), el('span', { textContent: 'Status' }), el('span', { textContent: 'Best offer' }), el('span', { textContent: 'Buyers' }), el('span', { textContent: 'Agent' })),
+      ...list.map((i) => el('div', { className: 'inv-row', onclick: () => { selectedItem = i.id; go('item') } },
+        thumb(i),
+        el('div', {}, el('div', { className: 't', textContent: i.title }), el('div', { className: 'sub2', textContent: `Listed ${age(i.ageMinutes)} ago${i.photoCount > 1 ? ` · ${i.photoCount} photos` : ''}` })),
+        el('div', { className: 'num', textContent: money(i.listPrice) }),
+        el('div', {}, stPill(i.displayStatus)),
+        el('div', { className: 'num', textContent: money(i.highestOffer) }),
+        el('div', { className: 'num', textContent: i.interested }),
+        el('div', { className: 'ai', textContent: i.aiStatus })))))
+}
+
+let selectedItem = null
+let detail = null
+let detailKey = ''
+async function loadDetail() {
+  if (!selectedItem) return
+  let next
+  try { next = await mapi(`/api/merchant/items/${selectedItem}`) } catch { return }
+  const key = JSON.stringify(next)
+  const typing = document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)
+  if (key === detailKey && detail) return
+  if (typing && detail) return
+  detailKey = key
+  detail = next
+  if (view === 'item') $('app').replaceChildren(itemView())
+}
+
+function itemView() {
+  if (!detail || detail.item.id !== selectedItem) { detailKey = ''; loadDetail(); return el('p', { className: 'muted', textContent: 'Loading…' }) }
+  const i = detail.item
+  const sold = i.status === 'sold'
+  const f = i.facts || { condition: '', flaws: [], highlights: [] }
+  const inp = (id, v, type = 'text') => el('input', { id, value: v ?? '', type, disabled: sold })
+  const err = el('p', { className: 'error' })
+  const act = async (path, method, body) => {
+    err.textContent = ''
+    try { await mapi(`/api/merchant/items/${i.id}${path}`, { method, body: body ? JSON.stringify(body) : undefined }); document.activeElement?.blur(); await refresh(); detail = null; if (method === 'DELETE') go('inventory'); else loadDetail() }
+    catch (e) { err.textContent = e.message }
+  }
+  const range = (r) => r && r.count ? `${money(r.min)}–${money(r.max)} (${r.count})` : 'unavailable'
+  return el('div', { className: 'view' },
+    el('button', { className: 'btn-ghost', style: 'margin-bottom:12px', textContent: '← Inventory', onclick: () => go('inventory') }),
+    questionsBox(i.id),
+    el('div', { className: 'card detail' },
+      el('div', {}, thumb(i),
+        el('div', { style: 'margin-top:12px;display:flex;gap:8px;flex-wrap:wrap' }, stPill(i.displayStatus), el('span', { className: 'muted', style: 'font-size:13px', textContent: '' + i.aiStatus })),
+        el('h2', { style: 'margin-top:18px', textContent: 'Research' }),
+        el('div', { className: 'kv', style: 'margin-top:6px' },
+          el('span', { textContent: 'Market comps' }), el('b', { textContent: range(i.market) }),
+          el('span', { textContent: state?.historyLabel || 'Past sales' }), el('b', { textContent: i.history?.prices?.length ? i.history.prices.map(money).join(' / ') : 'unavailable' }),
+          el('span', { textContent: 'Original retail' }), el('b', { textContent: 'unavailable' }),
+          el('span', { textContent: 'Condition source' }), el('b', { textContent: f.merchantConfirmed ? 'merchant confirmed' : 'AI from photo' }))),
+      el('div', {},
+        el('label', { textContent: 'Title' }), inp('e-title', i.title),
+        el('label', { textContent: 'Description' }), el('textarea', { id: 'e-desc', rows: 3, value: i.description, disabled: sold }),
+        el('div', { className: 'row3' },
+          el('div', {}, el('label', { textContent: 'Asking $' }), inp('e-list', i.listPrice, 'number')),
+          el('div', {}, el('label', { textContent: 'Auto-accept $' }), inp('e-auto', i.autoAcceptAt, 'number')),
+          el('div', {}, el('label', { textContent: 'Floor $' }), inp('e-floor', i.floor, 'number'))),
+        el('label', { textContent: 'Condition' }), inp('e-cond', f.condition),
+        el('div', { className: 'row3', style: 'grid-template-columns:1fr 1fr' },
+          el('div', {}, el('label', { textContent: 'Flaws (one per line)' }), el('textarea', { id: 'e-flaws', rows: 3, value: (f.flaws || []).join('\n'), disabled: sold })),
+          el('div', {}, el('label', { textContent: 'Highlights (one per line)' }), el('textarea', { id: 'e-high', rows: 3, value: (f.highlights || []).join('\n'), disabled: sold }))),
+        err,
+        sold ? el('p', { className: 'muted', textContent: `Sold to ${i.soldTo} for ${money(i.soldPrice)}. Sold items are kept in your history.` }) :
+        el('div', { className: 'actions', style: 'justify-content:flex-start' },
+          el('button', { className: 'btn-lime', textContent: 'Save changes', onclick: () => act('', 'PATCH', {
+            title: $('e-title').value, description: $('e-desc').value, listPrice: $('e-list').value, autoAcceptAt: $('e-auto').value, floor: $('e-floor').value,
+            condition: $('e-cond').value, flaws: $('e-flaws').value, highlights: $('e-high').value }) }),
+          el('button', { className: 'btn-ghost', textContent: i.status === 'paused' ? '▶ Resume' : 'Pause', onclick: () => act(i.status === 'paused' ? '/resume' : '/pause', 'POST') }),
+          el('button', { className: 'btn-ghost', textContent: '✓ Mark sold', onclick: () => act('/mark-sold', 'POST', { price: $('e-list').value, buyer: 'In-store buyer' }) }),
+          el('button', { className: 'btn-ghost', style: 'color:var(--bad)', textContent: 'Delete', onclick: (e) => { if (e.target.dataset.armed) act('', 'DELETE'); else { e.target.dataset.armed = 1; e.target.textContent = 'Tap again to delete' } } })))),
+    el('div', { className: 'card', style: 'margin-top:18px' },
+      el('h2', { textContent: `Buyers (${detail.buyers.length})` }),
+      detail.buyers.length ? el('div', { style: 'display:grid;gap:14px;margin-top:10px' }, ...detail.buyers.map((b) => el('div', {},
+        el('div', { style: 'display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px' },
+          el('span', { textContent: `${b.isAgent ? '' : ''}${b.buyerName}` }),
+          el('span', { textContent: `offer ${money(b.lastOffer)} · our counter ${money(b.lastCounter)}` })),
+        b.transcript.length ? el('div', { className: 'chat-log' }, ...b.transcript.map((t) => el('div', { className: 'r-' + t.role, textContent: t.text }))) : el('div', { className: 'muted', textContent: 'No messages yet' }))))
+        : el('p', { className: 'muted', textContent: 'No buyers yet. Share the QR from the projector.' })))
+}
+
+function soldView() {
+  const sold = state.items.filter((i) => i.status === 'sold').slice().reverse()
+  if (!sold.length) return el('div', { className: 'view' }, pageHead('Sold', 'Nothing sold yet'), el('p', { className: 'muted', textContent: 'Sales land here and become comparables for future pricing.' }))
+  if (false) return el('div', {}, el('h2', { textContent: 'Nothing sold yet' }), el('p', { className: 'muted', textContent: 'Sales land here and become comparables for future pricing.' }))
+  const total = sold.reduce((n, i) => n + i.soldPrice, 0)
+  return el('div', { className: 'view' },
+    pageHead('Sold', `${sold.length} sale${sold.length === 1 ? '' : 's'} · ${money(total)} revenue`),
+    el('div', { className: 'card', style: 'display:flex;gap:28px;flex-wrap:wrap;margin-bottom:14px' },
+      el('div', {}, el('div', { className: 'eyebrow', textContent: 'Sold' }), el('div', { className: 'price', style: 'font-size:34px', textContent: sold.length })),
+      el('div', {}, el('div', { className: 'eyebrow', textContent: 'Revenue' }), el('div', { className: 'price', style: 'font-size:34px', textContent: money(total) })),
+      el('div', {}, el('div', { className: 'eyebrow', textContent: 'Avg discount' }), el('div', { className: 'price', style: 'font-size:34px', textContent: Math.round(sold.reduce((n, i) => n + i.discountPct, 0) / sold.length) + '%' })),
+      el('div', { className: 'muted', style: 'align-self:center;font-size:14px;max-width:280px', textContent: 'Each sale is added to your sales history, so it prices the next similar item.' })),
+    el('div', { style: 'display:grid;gap:14px' }, ...sold.map((i) => {
+      const a = i.agentActions
+      return el('div', { className: 'card sold-card' },
+        thumb(i),
+        el('div', {},
+          el('div', { className: 'display', style: 'font-size:20px;font-weight:800;margin-bottom:8px', textContent: i.title }),
+          el('div', { className: 'kv' },
+            el('span', { textContent: 'Listed' }), el('b', { textContent: money(i.listPrice) }),
+            el('span', { textContent: 'Sold' }), el('b', { textContent: money(i.soldPrice) }),
+            el('span', { textContent: 'Buyer' }), el('b', { textContent: i.soldTo }),
+            el('span', { textContent: 'Discount' }), el('b', { textContent: `${i.discountPct}%` }),
+            el('span', { textContent: 'Time to sell' }), el('b', { textContent: age(i.timeToSellMinutes) }),
+            el('span', { textContent: 'Date' }), el('b', { textContent: new Date(i.soldAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) }),
+            el('span', { textContent: 'How' }), el('b', { textContent: i.soldVia || '' }))),
+        el('div', {},
+          el('div', { className: 'eyebrow', style: 'margin-bottom:6px', textContent: 'Agent' }),
+          el('ul', { style: 'margin:0;padding-left:18px;font-size:15px' },
+            el('li', { textContent: `handled ${a.buyerMessages} buyer message${a.buyerMessages === 1 ? '' : 's'}` }),
+            el('li', { textContent: `countered ${a.counters} offer${a.counters === 1 ? '' : 's'}${a.lowballsHandled ? ` (${a.lowballsHandled} lowball)` : ''}` }),
+            a.questionsForwarded ? el('li', { textContent: `forwarded ${a.questionsForwarded} question${a.questionsForwarded === 1 ? '' : 's'} to you` }) : null,
+            a.rulesProtected ? el('li', { textContent: `blocked ${a.rulesProtected} rule-breaking attempt${a.rulesProtected === 1 ? '' : 's'}` }) : null,
+            el('li', { textContent: `sale completed at ${money(i.soldPrice)}` })),
+          el('details', { style: 'margin-top:8px' }, el('summary', { textContent: 'Negotiation history' }),
+            el('ul', { className: 'feed' }, ...i.history.slice().reverse().map(feedItem)))))
+    })))
+}
+
+function activityView() {
+  return el('div', { className: 'view' }, pageHead('Activity', 'Every business event, newest first'),
+    state.feed.length ? el('ul', { className: 'feed' }, ...state.feed.map(ownerFeedItem)) : el('p', { className: 'muted', textContent: 'Nothing yet.' }))
+}
+
+function homeView() {
+  const s = state?.shop
+  return el('div', { className: 'view home' },
+    el('h1', { textContent: 'What are we selling?' }),
+    el('p', { className: 'sub', textContent: 'Turn anything into a listing.' }),
+    el('button', { className: 'snap', onclick: snap }, el('div', { className: 'cam', innerHTML: '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="4"/></svg>' }), el('div', { textContent: 'SNAP AN ITEM' })),
+    el('div', { className: 'shopstats' },
+      el('span', { textContent: `${s?.listed ?? 0} listed` }),
+      el('span', { textContent: `${s?.sold ?? 0} sold` }),
+      el('span', { textContent: `${s?.avgListingSeconds != null ? s.avgListingSeconds + 's avg listing time' : 'listing time: —'}` })),
+    currentItem() ? el('p', {}, el('a', { href: '#', textContent: 'Back to live item →', onclick: (e) => { e.preventDefault(); go('live') }, style: 'font-weight:700;color:var(--ink)' })) : null)
+}
+
+const MAX_PHOTOS = 6
+let tray = [] // photos for the item being snapped, as data URLs
+
+function snap() {
+  tray = []
+  if (matchMedia('(pointer: coarse)').matches || !navigator.mediaDevices?.getUserMedia) return $('file').click()
+  go('camera')
+}
+
+function addToTray(urls) {
+  tray = [...tray, ...urls].slice(0, MAX_PHOTOS)
+  flash()
+  if (view !== 'camera') go('tray')
+  else render()
+}
+
+function trayStrip(removable) {
+  return el('div', { className: 'tray' }, ...tray.map((u, i) => el('div', { className: 'tray-ph' },
+    el('img', { src: u, alt: `Photo ${i + 1}` }),
+    i === 0 ? el('span', { className: 'tray-main', textContent: 'Main' }) : null,
+    removable ? el('button', { className: 'tray-x', textContent: '×', 'aria-label': 'Remove photo', onclick: () => { tray.splice(i, 1); tray.length ? render() : go('home') } }) : null)))
+}
+
+function cameraView() {
+  const video = el('video', { autoplay: true, playsInline: true, muted: true })
+  const err = el('p', { className: 'error' })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } } })
+    .then((s) => { stream = s; video.srcObject = s })
+    .catch(() => { err.textContent = 'Camera unavailable. Upload photos instead.' })
+  const full = tray.length >= MAX_PHOTOS
+  return el('div', { className: 'view' },
+    el('div', { className: 'camera' }, video),
+    err,
+    el('p', { className: 'muted', style: 'text-align:center;margin:12px 0 0', textContent: tray.length ? `${tray.length} of ${MAX_PHOTOS} photos. Get the tag, the back, and any flaws.` : 'Snap the front first, then the tag, the back, and any flaws.' }),
+    tray.length ? trayStrip(true) : null,
+    el('div', { className: 'cam-actions' },
+      el('button', { className: 'btn-ghost', textContent: '← Back', onclick: () => { tray = []; go('home') } }),
+      el('button', { className: 'btn-ghost', textContent: 'Upload photos', onclick: () => $('files').click() }),
+      el('button', { className: 'btn-ghost btn-big', textContent: full ? 'Max photos' : 'Snap', disabled: full, onclick: () => {
+        if (!video.videoWidth) return
+        const c = document.createElement('canvas')
+        c.width = video.videoWidth; c.height = video.videoHeight
+        c.getContext('2d').drawImage(video, 0, 0)
+        addToTray([downscale(c)])
+      } }),
+      tray.length ? el('button', { className: 'btn-volt btn-big', textContent: `Analyze ${tray.length} photo${tray.length > 1 ? 's' : ''} →`, onclick: () => startListing(tray) }) : null))
+}
+
+// Phone flow: one camera shot at a time, collected here.
+function trayView() {
+  const full = tray.length >= MAX_PHOTOS
+  return el('div', { className: 'view', style: 'text-align:center' },
+    el('h1', { textContent: tray.length > 1 ? `${tray.length} photos` : 'Got it' }),
+    el('p', { className: 'muted', style: 'font-size:17px;margin:10px 0 22px', textContent: 'More angles help: the tag or label, the back, and any flaws. Up to 6.' }),
+    trayStrip(true),
+    el('div', { className: 'cam-actions', style: 'margin-top:22px' },
+      el('button', { className: 'btn-ghost', textContent: '+ Take another', disabled: full, onclick: () => $('file').click() }),
+      el('button', { className: 'btn-ghost', textContent: '+ Upload', disabled: full, onclick: () => $('files').click() })),
+    el('div', { style: 'margin-top:14px' },
+      el('button', { className: 'btn-volt btn-big', style: 'min-width:280px', textContent: `Analyze ${tray.length} photo${tray.length > 1 ? 's' : ''} →`, onclick: () => startListing(tray) })))
+}
+
+function stopCamera() { if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null } }
+
+function readFiles(files) {
+  const list = [...files].slice(0, MAX_PHOTOS - tray.length)
+  if (!list.length) return
+  Promise.all(list.map((f) => new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => { resolve(downscale(img)); URL.revokeObjectURL(img.src) }
+    img.onerror = () => resolve(null)
+    img.src = URL.createObjectURL(f)
+  }))).then((urls) => addToTray(urls.filter(Boolean)))
+}
+$('file').onchange = () => { const f = $('file').files; readFiles(f); $('file').value = '' }
+$('files').onchange = () => { const f = $('files').files; readFiles(f); $('files').value = '' }
+
+function downscale(src) {
+  const w = src.videoWidth || src.naturalWidth || src.width
+  const h = src.videoHeight || src.naturalHeight || src.height
+  const k = Math.min(1, 1024 / Math.max(w, h))
+  const c = document.createElement('canvas')
+  c.width = Math.round(w * k); c.height = Math.round(h * k)
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height)
+  return c.toDataURL('image/jpeg', 0.85)
+}
+
+async function startListing(photos) {
+  const urls = [...photos]
+  job = { status: 'running', steps: { photo: 'active', comps: 'pending', history: 'pending', rules: 'pending' }, elapsed: 0, localPhoto: urls[0], localPhotos: urls }
+  go('homework')
+  try {
+    const j = await mapi('/api/listings', { method: 'POST', body: JSON.stringify({ photos: urls }) })
+    job = { ...j, localPhoto: urls[0], localPhotos: urls }
+    pollJob()
+  } catch (e) { job.status = 'error'; job.error = e.message; render() }
+}
+
+async function pollJob() {
+  if (!job?.id || view !== 'homework') return
+  try {
+    const j = await mapi(`/api/listings/${job.id}`)
+    job = { ...j, localPhoto: job.localPhoto, localPhotos: job.localPhotos }
+  } catch (e) { job.error = e.message }
+  if (view !== 'homework') return
+  updateHomework()
+  if (job.status === 'running') setTimeout(pollJob, 700)
+  else if (job.status === 'done') {
+    $('ready').hidden = false
+    setTimeout(() => go('intake'), 1300)
+  }
+}
+
+const STEP_COPY = {
+  photo: ['Recognizing the item', 'Brand, era, material, condition…', (j) => `Recognized: ${j.draft.title}`],
+  comps: ['Checking resale comps', 'Searching eBay, Depop, Poshmark…', (j) => `${j.evidence.market.count} comparable listings found`],
+  history: ['Checking real sold prices', 'Searching past resale sales…', (j) => `${j.evidence.history.count} similar items actually sold`],
+  rules: ['Applying store rules', 'Floor + auto-accept from your policy', (j) => `Floor ${money(j.evidence.rules.floor)} · auto-accept ${money(j.evidence.rules.autoAcceptAt)}`],
+}
+
+function homeworkView() {
+  return el('div', { className: 'view homework' },
+    el('div', {}, el('img', { src: job.localPhoto, alt: 'Item photo' }),
+      job.localPhotos?.length > 1 ? el('div', { className: 'muted', style: 'margin-top:8px;font-weight:600;text-align:center', textContent: `+ ${job.localPhotos.length - 1} more angle${job.localPhotos.length > 2 ? 's' : ''}` }) : null),
+    el('div', {},
+      el('div', { className: 'eyebrow', id: 'hwTimer', textContent: 'Doing the homework…' }),
+      el('h1', { textContent: 'Doing the homework', style: 'font-size:38px;margin:6px 0 22px' }),
+      el('ul', { className: 'steps', id: 'steps' }),
+      el('div', { className: 'ready', id: 'ready', hidden: true, textContent: 'READY TO SELL ' }),
+      el('p', { className: 'error', id: 'hwErr' }),
+      el('div', { id: 'hwRetry' })))
+}
+
+function updateHomework() {
+  const list = $('steps')
+  if (!list) return
+  list.replaceChildren(...Object.entries(STEP_COPY).map(([k, [title, working, done]]) => {
+    const st = job.steps[k]
+    return el('li', { className: 'step ' + st },
+      el('div', { className: 'mark', textContent: st === 'done' ? '✓' : '' }),
+      el('div', {}, el('div', { className: 't', textContent: title }),
+        el('div', { className: 's', textContent: st === 'done' && job.status === 'done' ? done(job) : st === 'pending' ? '' : working })))
+  }))
+  $('hwLog').replaceChildren(researchLog(job.activity || []))
+  $('hwTimer').textContent = job.status === 'done' ? `Done in ${job.seconds}s` : `Doing the homework… ${job.elapsed ?? 0}s`
+  if (job.status === 'error') {
+    $('hwErr').textContent = 'Something went wrong: ' + (job.error || 'unknown error')
+    $('hwRetry').replaceChildren(el('button', { className: 'btn-lime', textContent: 'Try again', onclick: () => go('home') }))
+  }
+}
+
+function chips(options, selected, onPick) {
+  const wrap = el('div', { className: 'chipset' })
+  const draw = (sel) => wrap.replaceChildren(...options.map((o) => el('button', { type: 'button', className: o === sel ? 'on' : '', textContent: o, onclick: () => { onPick(o); draw(o) } })))
+  draw(selected)
+  return wrap
+}
+
+function intakeView() {
+  const d = job.draft
+  const aiCond = { excellent: 'Like new', good: 'Good', fair: 'Fair' }[String(d.facts?.condition).toLowerCase()] || 'Good'
+  const ans = job.intake ?? { acquired: null, condition: aiCond, retailPrice: '', flaws: (d.facts?.flaws || []).join('\n'), notes: '', qa: {} }
+  job.intake = ans
+  const q = (label, ...kids) => el('div', { className: 'iq' }, el('div', { className: 'iq-l', textContent: label }), ...kids)
+  const retail = el('input', { type: 'number', min: 0, placeholder: '$', value: ans.retailPrice, oninput: (e) => (ans.retailPrice = e.target.value), style: 'max-width:140px' })
+  return el('div', { className: 'view intake card' },
+    el('div', { style: 'display:flex;gap:16px;align-items:center;margin-bottom:6px' },
+      el('img', { src: job.localPhoto, alt: '', style: 'width:72px;height:72px;border-radius:14px;object-fit:cover' }),
+      el('div', {}, el('div', { className: 'eyebrow', textContent: 'Quick check' }),
+        el('h2', { style: 'font-size:24px', textContent: `Looks like a ${d.title}.` }),
+        el('div', { className: 'muted', textContent: 'A couple quick things will help me price it and answer buyers properly.' }))),
+    q('When did you get it?', chips(['< 1 year', '1–3 years', '3–5 years', '5+ years', 'Not sure'], ans.acquired, (v) => (ans.acquired = v))),
+    q('What did it cost new?', el('div', { style: 'display:flex;gap:8px;align-items:center' }, retail,
+      el('button', { type: 'button', className: 'btn-ghost', style: 'padding:9px 12px', textContent: "Don't know", onclick: () => { ans.retailPrice = ''; retail.value = '' } }))),
+    q('How would you describe the condition?', chips(['Like new', 'Great', 'Good', 'Fair'], ans.condition, (v) => (ans.condition = v)),
+      el('div', { className: 'muted', style: 'font-size:13px;margin-top:4px', textContent: `AI guessed from the photo: ${d.facts?.condition || 'unsure'}` })),
+    q('Any damage or flaws I should know about? (one per line)', el('textarea', { rows: 3, value: ans.flaws, placeholder: 'e.g. small scratch on the back', oninput: (e) => (ans.flaws = e.target.value) })),
+    ...(d.intake_questions || []).map((iq) => q(iq, el('input', { value: ans.qa[iq] || '', placeholder: 'Leave blank if not sure', oninput: (e) => (ans.qa[iq] = e.target.value) }))),
+    q('Anything special buyers should know?', el('textarea', { rows: 2, value: ans.notes, placeholder: 'e.g. comes with original box, one owner', oninput: (e) => (ans.notes = e.target.value) })),
+    el('p', { className: 'muted', style: 'font-size:13px', textContent: 'Your answers are stored as facts and override what the AI guessed. The agent never invents anything you leave blank.' }),
+    el('div', { className: 'actions' },
+      el('button', { className: 'btn-ghost', textContent: 'Skip', onclick: () => { job.intake = null; go('price') } }),
+      el('button', { className: 'btn-lime btn-big', textContent: 'Continue →', onclick: () => go('price') })))
+}
+
+function intakePayload() {
+  const a = job.intake
+  if (!a) return undefined
+  return {
+    acquired: a.acquired && a.acquired !== 'Not sure' ? a.acquired : null,
+    condition: a.condition, retailPrice: a.retailPrice || null, flaws: a.flaws, notes: a.notes,
+    qa: Object.entries(a.qa).filter(([, v]) => String(v).trim()).map(([q, v]) => ({ q, a: v })),
+  }
+}
+
+function priceView() {
+  const d = job.draft, ev = job.evidence
+  const values = [d.suggested_price, ev.rules.floor, ev.market.min, ev.market.max, ev.history.min, ev.history.max].filter((v) => v != null)
+  const lo = Math.min(...values) * 0.8, hi = Math.max(...values) * 1.1
+  const pct = (v) => `${((v - lo) / (hi - lo)) * 100}%`
+
+  const price = el('input', { type: 'number', min: 1, inputMode: 'decimal', value: d.suggested_price, 'aria-label': 'List price' })
+  const fit = () => (price.style.width = `${Math.max(2, String(price.value).length) + 0.3}ch`)
+  fit()
+  const title = el('input', { className: 'title-in', value: d.title, maxLength: 120, 'aria-label': 'Title' })
+  const desc = el('textarea', { rows: 3, value: d.description })
+  const auto = el('input', { type: 'number', min: 1, value: ev.rules.autoAcceptAt })
+  const floor = el('input', { type: 'number', min: 1, value: ev.rules.floor })
+  const err = el('p', { className: 'error' })
+  const whyHead = el('h2', { textContent: `Why ${money(d.suggested_price)}?` })
+  const ticks = []
+  price.oninput = () => {
+    fit()
+    const p = Number(price.value)
+    if (!(p > 0)) return
+    auto.value = Math.round(p * 0.93); floor.value = Math.round(p * 0.85)
+    whyHead.textContent = `Why ${money(p)}?`
+    ticks.forEach((t) => (t.style.left = pct(p)))
+    floorTick.style.left = pct(Number(floor.value))
+    floorVal.textContent = money(Number(floor.value))
+  }
+  floor.oninput = () => { floorTick.style.left = pct(Number(floor.value)); floorVal.textContent = money(Number(floor.value)) }
+
+  const tick = () => { const t = el('div', { className: 'tick', style: `left:${pct(d.suggested_price)}` }); ticks.push(t); return t }
+  const rangeRow = (label, sub, r) => el('div', { className: 'bar-row' },
+    el('div', { className: 'lbl', textContent: label }, el('small', { textContent: sub })),
+    el('div', { className: 'track' }, r.count ? el('div', { className: 'range', style: `left:${pct(r.min)};width:calc(${pct(r.max)} - ${pct(r.min)} + 4px)` }) : null, tick()),
+    el('div', { className: 'val', textContent: r.count ? `${money(r.min)}–${money(r.max)}` : 'none found' }))
+  const floorTick = el('div', { className: 'floor', style: `left:${pct(ev.rules.floor)}` })
+  const floorVal = el('div', { className: 'val', textContent: money(ev.rules.floor) })
+
+  return el('div', { className: 'view' },
+    el('div', { className: 'pricing card' },
+      el('div', {}, el('img', { className: 'photo', id: 'pvMain', src: job.localPhoto, alt: '' }),
+        job.localPhotos?.length > 1 ? el('div', { className: 'thumbs' }, ...job.localPhotos.map((u) => el('img', { src: u, alt: '', onclick: () => ($('pvMain').src = u) }))) : null,
+        el('div', { className: 'muted', style: 'margin-top:10px;font-size:14px', textContent: `Ready in ${job.seconds}s` })),
+      el('div', {},
+        el('div', { style: 'display:flex;justify-content:space-between;align-items:center' },
+          el('span', { className: 'eyebrow', textContent: 'New listing' }), el('span', { className: 'pill lime', textContent: 'READY ✓' })),
+        title,
+        el('div', { className: 'bigprice' }, el('span', { textContent: '$' }), price),
+        el('div', { className: 'muted', textContent: 'suggested price · tap to edit' }),
+        d.facts ? el('div', { className: 'facts' },
+          d.facts.condition ? el('span', { className: 'pill lime', textContent: d.facts.condition.toUpperCase() + ' CONDITION' }) : null,
+          ...[d.facts.brand, d.facts.era, d.facts.material, d.facts.size && 'Size ' + d.facts.size].filter(Boolean).map((t) => el('span', { className: 'pill', textContent: t })),
+          ...d.facts.highlights.map((t) => el('span', { className: 'pill', textContent: '✓ ' + t })),
+          ...d.facts.flaws.map((t) => el('span', { className: 'pill flaw', textContent: '' + t }))) : null,
+        el('div', { className: 'why' }, whyHead,
+          rangeRow('Market comps', `${ev.market.count} asking prices online`, ev.market),
+          rangeRow('Real sold prices', `${ev.history.count} similar sold · ${state?.historyLabel || ''}`, ev.history),
+          job.intake?.retailPrice ? el('div', { className: 'bar-row' }, el('div', { className: 'lbl', textContent: 'Original retail' }, el('small', { textContent: 'from you' })), el('div'), el('div', { className: 'val', textContent: money(Number(job.intake.retailPrice)) })) : null,
+          job.intake ? el('div', { className: 'bar-row' }, el('div', { className: 'lbl', textContent: 'Condition' }, el('small', { textContent: 'confirmed by you' })), el('div'), el('div', { className: 'val', textContent: job.intake.condition })) : null,
+          el('div', { className: 'bar-row' }, el('div', { className: 'lbl', textContent: 'Shop floor' }, el('small', { textContent: 'never sells below this' })),
+            el('div', { className: 'track' }, floorTick, tick()), floorVal)),
+        d.reasoning ? el('div', { className: 'quote', textContent: `“${d.reasoning}”` }) : null,
+        d.staff_notes ? el('div', { className: 'muted', style: 'margin-top:10px;font-size:14px', textContent: `Check before selling: ${d.staff_notes}` }) : null,
+        el('details', {}, el('summary', { textContent: 'Edit details' }),
+          el('label', { textContent: 'Description' }), desc,
+          el('div', { className: 'row3' },
+            el('div', {}, el('label', { textContent: 'Auto-accept at $' }), auto),
+            el('div', {}, el('label', { textContent: 'Floor $' }), floor),
+            el('div'))),
+        err,
+        el('div', { className: 'actions' },
+          el('button', { className: 'btn-ghost', textContent: '↺ Retake', onclick: () => go('home') }),
+          el('button', { className: 'btn-lime btn-big', textContent: 'START SELLING', onclick: async (e) => {
+            e.target.disabled = true
+            try {
+              await mapi('/api/items', { method: 'POST', body: JSON.stringify({
+                title: title.value, description: desc.value, listPrice: price.value, autoAcceptAt: auto.value, floor: floor.value, listingId: job.id, intake: intakePayload(),
+              }) })
+              await refresh()
+              confetti()
+              go('live')
+            } catch (x) { err.textContent = x.message; e.target.disabled = false }
+          } })))))
+}
+
+function liveView() {
+  const item = currentItem()
+  if (!item) return homeView()
+  const s = item.stats
+  const sold = item.status === 'sold'
+  return el('div', { className: 'view' },
+    questionsBox(),
+    el('div', { className: 'live-head' },
+      el('h1', { textContent: sold ? 'Sold!' : 'It’s live!' }),
+      el('p', { className: 'muted', textContent: sold ? `${item.soldTo} bought it for ${money(item.soldPrice)}` : 'SellBot is handling buyers. You only step in for close calls.' })),
+    el('div', { className: 'live-grid' },
+      el('div', { className: 'card' },
+        el('div', { className: 'live-item' },
+          item.hasPhoto ? el('img', { src: `/api/items/${item.id}/photo`, alt: '' }) : el('div'),
+          el('div', {},
+            el('div', { style: 'font-size:20px;font-weight:700;line-height:1.25', textContent: item.title }),
+            el('div', { className: 'price', style: 'font-size:56px;margin:6px 0', textContent: money(item.listPrice) }),
+            el('span', { className: 'pill ' + (sold ? 'good' : 'lime'), textContent: sold ? `SOLD ${money(item.soldPrice)}` : '● LIVE' }),
+            el('div', { className: 'muted', style: 'font-size:13px;margin-top:8px', textContent: `Floor ${money(item.floor)} · auto-accept ${money(item.autoAcceptAt)}` }))),
+        el('div', { className: 'tiles' },
+          tile(s.buyers, 'buyers'), tile(s.offers, 'offers'), tile(money(s.bestOffer), 'best offer'), tile(s.rulesProtected, 'rules protected')),
+        s.buyerNames.length ? el('div', { style: 'margin-top:16px' }, el('div', { className: 'eyebrow', style: 'margin-bottom:8px', textContent: 'Negotiating now' }),
+          el('div', { className: 'avatars' }, ...s.buyerNames.slice(0, 14).map(avatar), s.buyerNames.length > 14 ? el('span', { className: 'muted', textContent: `+${s.buyerNames.length - 14}` }) : null)) : null,
+        !sold ? el('div', { className: 'botbox' },
+          el('div', { style: 'font-weight:800', textContent: 'Send in a buyer agent' }),
+          el('div', { className: 'muted', style: 'font-size:13px;margin:2px 0 8px', textContent: 'An AI shopper haggles with your agent, same rules as people. Shows live on the projector.' }),
+          el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
+            ...[['tough', 'Tough haggler'], ['walk', 'Lowballer (walks)'], ['deal', 'Easy deal']].map(([m, l]) => el('button', { className: m === 'tough' ? 'btn-lime' : 'btn-ghost', style: 'padding:9px 12px;font-size:14px', textContent: l, onclick: async (e) => {
+              e.target.disabled = true
+              try { await mapi('/api/merchant/buyer-agent', { method: 'POST', body: JSON.stringify({ itemId: item.id, mode: m }) }); e.target.textContent = 'Sent ✓' }
+              catch (x) { e.target.textContent = x.message; setTimeout(() => { e.target.textContent = l; e.target.disabled = false }, 2500) }
+            } })))) : null,
+        el('div', { className: 'actions' },
+          el('a', { className: 'btn btn-ghost', href: '/stage', target: '_blank', textContent: 'Open projector ↗' }),
+          el('button', { className: 'btn-lime', textContent: 'Snap next item', onclick: () => go('home') }))),
+      el('div', { className: 'card' },
+        el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px' }, el('h2', { textContent: 'Live shop' }), el('span', { className: 'live-dot', textContent: 'LIVE' })),
+        state.feed.length ? el('ul', { className: 'feed' }, ...state.feed.slice(0, 10).map(ownerFeedItem)) : el('p', { className: 'muted', textContent: 'Waiting for the first buyer…' }))))
+}
+const openEvidence = new Set()
+function ownerFeedItem(e) {
+  const li = feedItem(e)
+  if (!e.evidence) return li
+  const key = e.ts + e.kind
+  li.classList.add('has-ev')
+  if (openEvidence.has(key)) li.append(evidenceBox(e.evidence))
+  li.onclick = () => { openEvidence.has(key) ? openEvidence.delete(key) : openEvidence.add(key); render() }
+  return li
+}
+function questionsBox(itemId) {
+  const open = (state?.questions || []).filter((q) => q.status === 'open' && (!itemId || q.itemId === itemId))
+  if (!open.length) return null
+  return el('div', { className: 'card qbox', style: 'margin-bottom:18px' },
+    el('h2', { textContent: `Buyers are asking (${open.length})` }),
+    el('div', { className: 'muted', style: 'font-size:13px;margin:2px 0 6px', textContent: 'Your answer goes to the buyer and is saved, so the agent can answer the next person who asks.' }),
+    ...open.map((q) => {
+      const input = el('input', { placeholder: 'Type your answer…', id: 'qa-' + q.id })
+      const err = el('div', { className: 'error' })
+      return el('div', { className: 'qitem' },
+        el('div', {}, el('b', { textContent: q.buyerName }), el('span', { className: 'muted', textContent: ` on ${q.itemTitle}` })),
+        el('div', { style: 'font-size:17px;margin-top:2px', textContent: `“${q.question}”` }),
+        el('div', { className: 'row' }, input, el('button', { className: 'btn-lime', textContent: 'Answer', onclick: async (e) => {
+          if (!input.value.trim()) return
+          e.target.disabled = true
+          try { await mapi(`/api/questions/${q.id}/answer`, { method: 'POST', body: JSON.stringify({ answer: input.value }) }); input.blur(); lastKey = ''; refresh() }
+          catch (x) { err.textContent = x.message; e.target.disabled = false }
+        } })), err)
+    }))
+}
+
+const tile = (n, l) => el('div', { className: 'tile' }, el('div', { className: 'n', textContent: n }), el('div', { className: 'l', textContent: l }))
+
+// ---------------- Overlays ----------------
+function renderOverlays() {
+  document.querySelectorAll('.overlay[data-kind="approval"]').forEach((o) => o.remove())
+  const a = state?.approvals.find((x) => x.status === 'pending' && !dismissedApproval.has(x.id))
+  if (!a || document.querySelector('.overlay[data-kind="deal"]')) return
+  const diff = a.price - a.item.listPrice
+  document.body.append(el('div', { className: 'overlay', dataset: { kind: 'approval' } },
+    el('div', { className: 'card' },
+      el('div', { style: 'font-size:40px', textContent: '' }),
+      el('h2', { textContent: 'CLOSE DEAL?', style: 'font-size:28px' }),
+      el('div', { className: 'muted', style: 'margin-top:12px', textContent: `${a.buyerName} offered` }),
+      el('div', { className: 'deal-amt', textContent: money(a.price) }),
+      evidenceBox(a.evidence) || el('div', { className: 'ledger' }, el('div', {}, el('span', { textContent: 'Listed' }), el('span', { textContent: money(a.item.listPrice) })), el('div', {}, el('span', { textContent: 'Store floor' }), el('span', { textContent: money(a.item.floor) })), el('div', {}, el('span', { textContent: 'Difference' }), el('span', { textContent: `−${money(-diff)}`, style: 'color:var(--bad)' }))),
+      a.recommendation ? el('div', { className: 'quote', style: 'text-align:left;margin:0 0 14px', textContent: `${a.recommendation}` }) : null,
+      el('div', { className: 'three' },
+        el('button', { className: 'btn-ghost', textContent: 'DECLINE', onclick: () => decide(a.id, 'decline') }),
+        el('div', { className: 'ctr' },
+          el('input', { type: 'number', id: 'ctr-' + a.id, value: a.suggestedCounter, min: a.item.floor, 'aria-label': 'Counter price' }),
+          el('button', { className: 'btn', textContent: 'COUNTER', onclick: () => decide(a.id, 'counter', Number($('ctr-' + a.id).value)) })),
+        el('button', { className: 'btn-good', textContent: `ACCEPT ${money(a.price)}`, onclick: () => decide(a.id, 'accept') })))))
+}
+
+async function decide(id, decision, price) {
+  try { await mapi(`/api/approvals/${id}`, { method: 'POST', body: JSON.stringify({ decision, price }) }) }
+  catch (e) { const r = document.querySelector('.overlay[data-kind="approval"] .card'); if (r) r.append(el('p', { className: 'error', textContent: e.message })); return }
+  dismissedApproval.add(id)
+  lastKey = ''
+  document.querySelectorAll('.overlay[data-kind="approval"]').forEach((o) => o.remove())
+  refresh()
+}
+
+function showDeal(item) {
+  const approved = state.approvals.some((a) => a.itemId === item.id && a.status === 'accepted')
+  confetti()
+  document.body.append(el('div', { className: 'overlay', dataset: { kind: 'deal' }, onclick: (e) => { if (e.target === e.currentTarget) e.currentTarget.remove() } },
+    el('div', { className: 'card' },
+      el('div', { style: 'font-size:54px', textContent: '' }),
+      el('h2', { textContent: 'DEAL!', style: 'font-size:34px' }),
+      el('div', { className: 'deal-amt', textContent: money(item.soldPrice) }),
+      item.soldFirstOffer && item.soldFirstOffer < item.soldPrice
+        ? el('p', { style: 'font-weight:700;font-size:18px;margin:0', textContent: `Agent negotiated ${money(item.soldFirstOffer)} → ${money(item.soldPrice)}` }) : null,
+      el('p', { className: 'muted', textContent: approved ? 'Merchant approved ✓' : 'Closed by SellBot within your rules ✓' }),
+      el('button', { className: 'btn-lime btn-big', style: 'width:100%;margin-top:8px', textContent: 'Snap next item', onclick: (e) => { e.target.closest('.overlay').remove(); go('home') } }))))
+}
+
+// ---------------- Polling ----------------
+let lastKey = ''
+async function refresh() {
+  try { state = await mapi('/api/merchant/state') }
+  catch (e) { $('app').replaceChildren(el('div', { className: 'card', style: 'text-align:center' }, el('h2', { textContent: 'Owner link required' }), el('p', { className: 'muted', textContent: e.message }))); return }
+  for (const i of state.items) {
+    if (i.status === 'sold' && !seenSold.has(i.id)) { seenSold.add(i.id); if (initialized) showDeal(i) }
+  }
+  const key = JSON.stringify(state)
+  if (key === lastKey) return
+  if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && view !== 'item') { renderOverlays(); return }
+  lastKey = key
+  if (['live', 'inventory', 'sold', 'activity'].includes(view)) render()
+  else { renderStepper(); renderTabs() }
+  if (view === 'item') loadDetail()
+  renderOverlays()
+}
+
+let resetArmed = false
+$('resetBtn').onclick = async () => {
+  if (!resetArmed) { resetArmed = true; $('resetBtn').textContent = 'Tap again to wipe'; setTimeout(() => { resetArmed = false; $('resetBtn').textContent = 'Reset demo' }, 3000); return }
+  await mapi('/api/merchant/reset', { method: 'POST' })
+  location.reload()
+}
+
+let initialized = false
+refresh().then(() => {
+  initialized = true
+  const fromHash = location.hash.slice(1)
+  if (['live', 'inventory', 'sold', 'activity'].includes(fromHash)) view = fromHash
+  else if (currentItem() && currentItem().status === 'live') view = 'live'
+  render()
+})
+setInterval(refresh, 1500)
+</script>
+</body>
+</html>

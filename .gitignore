@@ -1,0 +1,8 @@
+node_modules/
+.env
+.agent.json
+data/past_sales.csv
+data/state.json
+.local/
+data/state.json.tmp
+.DS_Store

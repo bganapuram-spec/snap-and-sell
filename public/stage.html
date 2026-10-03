@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snap &amp; Sell — Live</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { min-height: 100vh; padding: 22px 32px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 22px; align-items: start; }
+  .hero { text-align: center; padding: 26px; }
+  .hero h1 { font-size: 46px; }
+  .hero .item { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 14px 0 6px; }
+  .hero .item img { width: 120px; height: 120px; object-fit: cover; border-radius: 18px; background: #ddd; }
+  .hero .item .t { font-family: var(--display); font-size: 30px; text-transform: uppercase; text-align: left; max-width: 360px; line-height: 1.1; }
+  .hero .price { font-size: 140px; }
+  .qr { width: 240px; height: 240px; margin: 14px auto 12px; padding: 12px; background: #fff; border-radius: 16px; }
+  .qr img { width: 100%; height: 100%; display: block; }
+  .dare { font-family: var(--display); font-size: 40px; text-transform: uppercase; line-height: 1; }
+  .scan { display: inline-block; margin-top: 12px; background: var(--lime); padding: 11px 20px; border-radius: 99px; font-weight: 800; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
+  .joined { margin-top: 18px; display: grid; justify-items: center; gap: 10px; }
+  .side { display: grid; gap: 18px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: #fff; border-radius: 12px; padding: 14px; }
+  .stat .n { font-family: var(--display); font-size: 40px; }
+  .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+  .feed li { font-size: 17px; }
+  .a2a { display: grid; gap: 8px; }
+  .a2a > div { padding: 10px 13px; border-radius: 16px; max-width: 88%; font-size: 16px; animation: pop .3s ease both; }
+  .a2a .who { font-size: 11px; font-weight: 800; letter-spacing: .08em; opacity: .7; margin-bottom: 2px; }
+  .a2a-buyer { justify-self: end; background: var(--ink); color: #fff; }
+  .a2a-shop { justify-self: start; background: #fff; border-left: 4px solid var(--lime); }
+  .hw { display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: center; max-width: 1000px; margin: 30px auto; }
+  .hw img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--r); box-shadow: var(--shadow); }
+  .hw .step .t { font-size: 22px; }
+  .sold { font-family: var(--display); font-size: 44px; text-transform: uppercase; color: var(--ink); margin: 8px 0; }
+  .empty { text-align: center; padding: 120px 0; }
+  @media (max-width: 900px) { body { padding: 16px; } .grid, .hw { grid-template-columns: 1fr; } .hero .price { font-size: 72px; } }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand" style="font-size:22px"><span class="spark">S</span>SNAP &amp; SELL</div>
+  <div class="muted" style="font-weight:600">One photo becomes a selling agent</div>
+</div>
+<div id="app"></div>
+
+<script src="/app.js"></script>
+<script>
+let lastKey = ''
+let celebratedLive = null
+let celebratedSold = new Set()
+let first = true
+
+const HW = {
+  photo: ['Recognizing the item', 'Brand, era, material, condition…'],
+  comps: ['Checking resale comps', 'Searching eBay, Depop, Poshmark…'],
+  history: ['Checking real sold prices', 'What did similar items actually sell for?'],
+  rules: ['Applying store rules', 'Floor + auto-accept from shop policy'],
+}
+
+function researchView(job) {
+  return el('div', { className: 'hw' },
+    el('img', { src: `/api/listings/${job.id}/photo`, alt: '' }),
+    el('div', {},
+      el('div', { className: 'eyebrow', id: 'hwTime', textContent: `${job.elapsed}s` }),
+      el('h1', { textContent: 'Doing the homework', style: 'margin:6px 0 24px' }),
+      el('ul', { className: 'steps' }, ...Object.entries(HW).map(([k, [t, s]]) => el('li', { className: 'step ' + job.steps[k] },
+        el('div', { className: 'mark', textContent: job.steps[k] === 'done' ? '✓' : '' }),
+        el('div', {}, el('div', { className: 't', textContent: t }), el('div', { className: 's', textContent: job.steps[k] === 'pending' ? '' : s }))))),
+      researchLog(job.activity || []),
+      job.status === 'done' ? el('div', { className: 'ready', style: 'font-family:var(--display);font-size:36px;font-weight:800;margin-top:22px', textContent: 'READY TO SELL ' }) : null))
+}
+
+function liveView(r) {
+  const { item, stats, shop } = r
+  const sold = item.status === 'sold'
+  return el('div', { className: 'grid' },
+    el('div', { className: 'card hero' },
+      el('h1', { textContent: sold ? 'DEAL!' : 'IT’S LIVE! ' }),
+      el('div', { className: 'item' },
+        item.hasPhoto ? el('img', { src: `/api/items/${item.id}/photo`, alt: '' }) : null,
+        el('div', { className: 't', textContent: item.title })),
+      sold
+        ? el('div', {},
+            el('div', { className: 'price', textContent: money(item.soldPrice) }),
+            el('div', { className: 'sold', textContent: `SOLD to ${item.soldTo}` }),
+            item.soldFirstOffer && item.soldFirstOffer < item.soldPrice
+              ? el('div', { style: 'font-size:22px;font-weight:700', textContent: `Agent negotiated ${money(item.soldFirstOffer)} → ${money(item.soldPrice)}` }) : null,
+            el('div', { className: 'muted', style: 'margin-top:6px', textContent: `Listed at ${money(item.listPrice)}` }))
+        : el('div', {},
+            el('div', { className: 'price', textContent: money(item.listPrice) }),
+            el('div', { className: 'qr' }, el('img', { src: `/api/items/${item.id}/qr.svg`, alt: 'Scan to haggle' })),
+            el('div', { className: 'dare', textContent: 'Think you can beat the agent?' }),
+            el('div', { className: 'scan', textContent: 'SCAN & HAGGLE' })),
+      el('div', { className: 'joined' },
+        stats.buyerNames.length ? el('div', { className: 'avatars', style: 'justify-content:center' },
+          ...stats.buyerNames.slice(0, 16).map(avatar),
+          stats.buyerNames.length > 16 ? el('span', { style: 'font-weight:800', textContent: `+${stats.buyerNames.length - 16}` }) : null) : null,
+        el('div', { className: 'muted', style: 'font-weight:700', textContent: `${stats.buyers} buyer${stats.buyers === 1 ? '' : 's'} joined` }))),
+    el('div', { className: 'side' },
+      r.agentChat && r.agentChat.transcript.length ? el('div', { className: 'card' },
+        el('div', { style: 'display:flex;justify-content:space-between;align-items:center' },
+          el('h2', { textContent: 'Buyer agent vs Shop agent' }), el('span', { className: 'live-dot', textContent: 'LIVE' })),
+        el('div', { className: 'muted', style: 'font-size:13px;margin:2px 0 8px', textContent: 'Two ZooWork agents negotiating. Only evaluate_offer() can say yes.' }),
+        el('div', { className: 'a2a' }, ...r.agentChat.transcript.slice(-6).map((t) => el('div', { className: 'a2a-' + t.role },
+          el('div', { className: 'who', textContent: t.role === 'buyer' ? 'BUYER AGENT' : 'SHOP AGENT' }), el('div', { textContent: t.text }))))) : null,
+      el('div', { className: 'card' },
+        el('div', { style: 'display:flex;justify-content:space-between;align-items:center' },
+          el('h2', { textContent: 'Live shop' }), el('span', { className: 'live-dot', textContent: 'LIVE' })),
+        el('div', { style: 'font-weight:800;font-size:18px;margin:8px 0 4px', textContent: `${stats.buyers} buyer${stats.buyers === 1 ? '' : 's'} negotiating` }),
+        r.feed.length ? el('ul', { className: 'feed' }, ...r.feed.slice(0, 7).map(feedItem)) : el('p', { className: 'muted', textContent: 'Scan the code to make the first offer.' })),
+      el('div', { className: 'card' },
+        el('div', { className: 'eyebrow', style: 'margin-bottom:10px', textContent: 'This session' }),
+        el('div', { className: 'stats' },
+          stat(shop.avgListingSeconds != null ? `${shop.avgListingSeconds}s` : '—', 'photo → listing'),
+          stat(shop.buyerChats, 'buyer chats'),
+          stat(shop.rulesProtected, 'rules protected'),
+          stat(money(stats.bestOffer), 'best offer')))))
+}
+const stat = (n, l) => el('div', { className: 'stat' }, el('div', { className: 'n', textContent: n }), el('div', { className: 'l', textContent: l }))
+
+async function poll() {
+  let r
+  try { r = await (await fetch('/api/stage')).json() } catch { return }
+  const key = JSON.stringify({ ...r, job: r.job && { ...r.job, elapsed: 0 } })
+  if (r.job && $('hwTime')) $('hwTime').textContent = `${r.job.elapsed}s`
+  if (key === lastKey) return
+  lastKey = key
+  const app = $('app')
+  if (r.job) app.replaceChildren(researchView(r.job))
+  else if (r.item) app.replaceChildren(liveView(r))
+  else app.replaceChildren(el('div', { className: 'card empty' }, el('h1', { textContent: 'Waiting for the first item…' }), el('p', { className: 'muted', textContent: 'Snap something on the shop app.' })))
+
+  if (!first && r.item && !r.job) {
+    if (r.item.status === 'live' && celebratedLive !== r.item.id) confetti()
+    if (r.item.status === 'sold' && !celebratedSold.has(r.item.id)) confetti()
+  }
+  if (r.item) {
+    celebratedLive = r.item.id
+    if (r.item.status === 'sold') celebratedSold.add(r.item.id)
+  }
+  first = false
+}
+poll()
+setInterval(poll, 1200)
+</script>
+</body>
+</html>
