@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
 import { applyShopRules, searchSales, summarize, type Item } from './pricing.ts'
-import { approvals, buyerSessions, competitionFor, items, loadState, log, logEvent, markSold, noteForSession, offerBook, questions, resetState } from './store.ts'
+import { approvals, buyerSessions, competitionFor, countToday, deleteShop, forgetPhotos, GUEST_SHOP_DAYS, items, loadState, log, logEvent, MAIN_SHOP, markSold, noteForSession, offerBook, questions, resetShop, shopOfItem, shops, type Shop } from './store.ts'
 import { addSaleToHistory, ensureAgents, MODEL, pastSales, runShopperBot, runBuyerTurn, runListing, startBuyerSession, type ListingDraft, type ListingStep } from './zoowork.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
@@ -42,6 +42,7 @@ const STEP_ORDER: ListingStep[] = ['photo', 'comps', 'history', 'rules']
 
 type Job = {
   id: string
+  shopId: string
   status: 'running' | 'done' | 'error'
   steps: Record<ListingStep, StepState>
   photo: string // data URL (first photo)
@@ -60,12 +61,13 @@ type Job = {
   error?: string
 }
 const jobs = new Map<string, Job>()
-let latestJobId: string | undefined
+let latestJobId: string | undefined // the main shop's latest listing, for the projector
 
 type Mime = 'image/jpeg' | 'image/png' | 'image/webp'
-function startJob(photos: { url: string; mimeType: Mime; data: string }[]) {
+function startJob(photos: { url: string; mimeType: Mime; data: string }[], shopId: string) {
   const job: Job = {
     id: randomUUID().slice(0, 8),
+    shopId,
     status: 'running',
     steps: { photo: 'active', comps: 'pending', history: 'pending', rules: 'pending' },
     photo: photos[0].url,
@@ -74,7 +76,7 @@ function startJob(photos: { url: string; mimeType: Mime; data: string }[]) {
     startedAt: Date.now(),
   }
   jobs.set(job.id, job)
-  latestJobId = job.id
+  if (shopId === MAIN_SHOP) latestJobId = job.id
 
   const KIND: Record<ListingStep, string> = { photo: 'photo', comps: 'web', history: 'solddata', rules: 'rules' }
   const note = (kind: string, message: string) => { job.activity.push({ ts: new Date().toISOString(), kind, message }); job.activity = job.activity.slice(-40) }
@@ -185,21 +187,26 @@ function agentChat(itemId: string) {
 
 const r_live = (itemId: string) => items.get(itemId)?.status === 'live'
 
-function shopStats() {
-  const all = [...items.values()]
+const shopItems = (shopId: string) => [...items.values()].filter((i) => shopOfItem(i) === shopId)
+// Log entries carry their shop; older entries without one belong to the main shop.
+const entryShop = (e: { data?: unknown }) => ((e.data ?? {}) as { shopId?: string }).shopId ?? MAIN_SHOP
+
+function shopStats(shopId: string) {
+  const all = shopItems(shopId)
+  const ids = new Set(all.map((i) => i.id))
   const timed = all.map((i) => i.listingSeconds).filter((n): n is number => typeof n === 'number')
   return {
     listed: all.length,
     sold: all.filter((i) => i.status === 'sold').length,
     avgListingSeconds: timed.length ? Math.round(timed.reduce((a, b) => a + b, 0) / timed.length) : null,
-    buyerChats: buyerSessions.size,
-    rulesProtected: log.filter((e) => e.kind === 'manipulation').length,
+    buyerChats: [...buyerSessions.values()].filter((s) => ids.has(s.itemId)).length,
+    rulesProtected: log.filter((e) => e.kind === 'manipulation' && entryShop(e) === shopId).length,
   }
 }
 
 const FEED_KINDS = ['listing', 'offer', 'manipulation', 'approval', 'sold', 'declined', 'buyer', 'question', 'highest', 'countered', 'edited', 'paused', 'deleted', 'answered']
 // Evidence includes the floor, so only the owner's feed gets it.
-const feed = (n: number, withEvidence = false) => log.filter((e) => FEED_KINDS.includes(e.kind)).slice(-n).reverse()
+const feed = (shopId: string, n: number, withEvidence = false) => log.filter((e) => FEED_KINDS.includes(e.kind) && entryShop(e) === shopId).slice(-n).reverse()
   .map((e) => ({ ts: e.ts, kind: e.kind, message: e.message, detail: dataOf(e).detail, evidence: withEvidence ? (e.data as any)?.evidence : undefined }))
 
 // Advisory only: the owner decides. Built from real offers in the offer book.
@@ -279,8 +286,55 @@ function clientIp(req: IncomingMessage) {
   return String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
 }
 
-function requireMerchant(req: IncomingMessage) {
-  if (req.headers['x-merchant-token'] !== MERCHANT_TOKEN) throw new HttpError(401, 'Merchant token required')
+// Returns the shop this owner token belongs to: the main shop (MERCHANT_TOKEN) or a guest shop.
+function requireMerchant(req: IncomingMessage): string {
+  const token = String(req.headers['x-merchant-token'] ?? '')
+  if (token && token === MERCHANT_TOKEN) return MAIN_SHOP
+  const guest = token ? [...shops.values()].find((s) => s.token === token) : undefined
+  if (!guest) throw new HttpError(401, 'Merchant token required')
+  guest.lastActiveAt = new Date().toISOString()
+  return guest.id
+}
+
+// Another shop's item is reported as missing, so guests can't probe each other's shops.
+function ownItem(shopId: string, itemId: string | undefined) {
+  const item = itemId ? items.get(itemId) : undefined
+  if (!item || shopOfItem(item) !== shopId) throw new HttpError(404, 'Item not found')
+  return item
+}
+
+// Guest owners spend the same ZooWork credits, so their costly actions have daily caps (kept in
+// Upstash in production, so the free plan's restarts don't reset them).
+const GUEST_LISTINGS_PER_DAY = Number(process.env.GUEST_LISTINGS_PER_DAY ?? 5)
+const GUEST_LISTINGS_SITE_PER_DAY = Number(process.env.GUEST_LISTINGS_SITE_PER_DAY ?? 100)
+const GUEST_BOTS_PER_DAY = 3
+const GUEST_SHOPS_PER_IP_PER_DAY = 3
+const GUEST_SHOPS_SITE_PER_DAY = 200
+
+async function dailyLimit(key: string, max: number, message: string) {
+  if ((await countToday(key)) > max) throw new HttpError(429, message)
+}
+
+function guestShopView(shopId: string) {
+  const s = shops.get(shopId)
+  return {
+    id: shopId,
+    guest: shopId !== MAIN_SHOP,
+    storefront: shopId === MAIN_SHOP ? '/shop' : `/shop?s=${shopId}`,
+    expiresAt: s ? new Date(Date.parse(s.lastActiveAt) + GUEST_SHOP_DAYS * 86_400_000).toISOString() : null,
+    listingsPerDay: shopId === MAIN_SHOP ? null : GUEST_LISTINGS_PER_DAY,
+  }
+}
+
+// Guest shops are deleted after GUEST_SHOP_DAYS without their owner opening them.
+function expireGuestShops() {
+  const cutoff = Date.now() - GUEST_SHOP_DAYS * 86_400_000
+  for (const s of [...shops.values()]) {
+    if (Date.parse(s.lastActiveAt) >= cutoff) continue
+    deleteShop(s.id)
+    for (const [id, j] of jobs) if (j.shopId === s.id) jobs.delete(id)
+    console.log(`Guest shop ${s.id} expired`)
+  }
 }
 
 function money(v: unknown, field: string) {
@@ -303,10 +357,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   const parts = url.pathname.split('/').filter(Boolean)
   const method = req.method ?? 'GET'
 
-  if (method === 'GET' && url.pathname === '/') {
-    res.writeHead(302, { Location: '/stage' })
-    return res.end()
-  }
+  // Landing page: anyone can start a guest shop from here.
+  if (method === 'GET' && url.pathname === '/') return send(res, 200, file('home.html'), 'text/html')
   if (method === 'GET' && STATIC[url.pathname]) {
     const [name, type] = STATIC[url.pathname]
     return send(res, 200, file(name), type)
@@ -318,7 +370,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   // --- Merchant ---
 
   if (method === 'POST' && url.pathname === '/api/listings') {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
     const b = await body(req, 9_000_000)
     const list: unknown[] = Array.isArray(b.photos) ? b.photos : [b.photo]
     if (!list.length || list.length > 6) throw new HttpError(400, 'Send 1 to 6 photos')
@@ -330,15 +382,21 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     })
     // ZooWork caps one tool result at 8 MiB across all images.
     if (photos.reduce((n, p) => n + p.data.length, 0) > 7_500_000) throw new HttpError(413, 'Photos too large in total')
-    const job = startJob(photos)
+    if (shopId !== MAIN_SHOP) {
+      // The app shrinks photos to ~200 KB each; a stricter cap keeps guest shops within free storage.
+      if (photos.reduce((n, p) => n + p.data.length, 0) > 2_500_000) throw new HttpError(413, 'Photos too large in total')
+      await dailyLimit(`listings:${shopId}`, GUEST_LISTINGS_PER_DAY, `Guest shops can list ${GUEST_LISTINGS_PER_DAY} items a day. Come back tomorrow!`)
+      await dailyLimit('listings:guests', GUEST_LISTINGS_SITE_PER_DAY, 'Lots of people are trying Snap & Sell today. Come back tomorrow!')
+    }
+    const job = startJob(photos, shopId)
     if (url.searchParams.get('hidden') === '1') job.hidden = true
     return send(res, 202, jobView(job))
   }
 
   if (method === 'GET' && parts[1] === 'listings' && parts[2] && !parts[3]) {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
     const job = jobs.get(parts[2])
-    if (!job) throw new HttpError(404, 'Listing job not found')
+    if (!job || job.shopId !== shopId) throw new HttpError(404, 'Listing job not found')
     return send(res, 200, jobView(job))
   }
 
@@ -349,7 +407,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (method === 'POST' && url.pathname === '/api/items') {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
     const b = await body(req)
     const title = String(b.title ?? '').trim().slice(0, 120)
     if (!title) throw new HttpError(400, 'Title is required')
@@ -357,9 +415,10 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     const floor = money(b.floor, 'Floor')
     const autoAcceptAt = money(b.autoAcceptAt, 'Auto-accept price')
     if (!(floor <= autoAcceptAt && autoAcceptAt <= listPrice)) throw new HttpError(400, 'Need floor ≤ auto-accept ≤ list price')
-    const job = b.listingId ? jobs.get(String(b.listingId)) : undefined
+    const found = b.listingId ? jobs.get(String(b.listingId)) : undefined
+    const job = found?.shopId === shopId ? found : undefined
     const item: Item = {
-      id: randomUUID().slice(0, 8), title, description: String(b.description ?? '').slice(0, 1000),
+      id: randomUUID().slice(0, 8), shopId, title, description: String(b.description ?? '').slice(0, 1000),
       listPrice, autoAcceptAt, floor, status: 'live',
       photo: job?.photo, photos: job?.photos, listingSeconds: job?.seconds, createdAt: new Date().toISOString(),
       facts: mergeIntake(job?.draft?.facts, b.intake),
@@ -373,22 +432,23 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (method === 'GET' && url.pathname === '/api/merchant/state') {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
+    const mine = (itemId: string) => shopOfItem(items.get(itemId)) === shopId && items.has(itemId)
     return send(res, 200, {
-      items: [...items.values()].map(itemSummary),
-      approvals: [...approvals.values()].reverse().map((a) => ({ ...a, item: (({ photo, photos, ...i }) => i)(items.get(a.itemId)!), ...approvalAdvice(a.itemId, a.sessionId, a.price) })),
-      shop: shopStats(),
-      feed: feed(30, true),
-      questions: [...questions.values()].reverse().map((q) => ({ ...q, itemTitle: items.get(q.itemId)?.title ?? '' })),
+      items: shopItems(shopId).map(itemSummary),
+      approvals: [...approvals.values()].filter((a) => mine(a.itemId)).reverse().map((a) => ({ ...a, item: (({ photo, photos, ...i }) => i)(items.get(a.itemId)!), ...approvalAdvice(a.itemId, a.sessionId, a.price) })),
+      shop: shopStats(shopId),
+      shopInfo: guestShopView(shopId),
+      feed: feed(shopId, 30, true),
+      questions: [...questions.values()].filter((q) => mine(q.itemId)).reverse().map((q) => ({ ...q, itemTitle: items.get(q.itemId)?.title ?? '' })),
       pastSalesIsSample: pastSales.isSample,
       historyLabel: pastSales.label,
     })
   }
 
   if (parts[1] === 'merchant' && parts[2] === 'items' && parts[3]) {
-    requireMerchant(req)
-    const item = items.get(parts[3])
-    if (!item) throw new HttpError(404, 'Item not found')
+    const shopId = requireMerchant(req)
+    const item = ownItem(shopId, parts[3])
     const action = parts[4]
 
     if (method === 'GET' && !action) {
@@ -443,16 +503,18 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       items.delete(item.id)
       for (const [id, x] of buyerSessions) if (x.itemId === item.id) buyerSessions.delete(id)
       for (const [id, a] of approvals) if (a.itemId === item.id) approvals.delete(id)
-      logEvent('deleted', `${item.title} deleted`, {})
+      forgetPhotos([item.id])
+      logEvent('deleted', `${item.title} deleted`, { shopId })
       return send(res, 200, { ok: true })
     }
   }
 
   if (method === 'POST' && parts[1] === 'merchant' && parts[2] === 'buyer-agent') {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
     const b = await body(req)
-    const item = b.itemId ? items.get(String(b.itemId)) : [...items.values()].filter((i) => i.status === 'live').at(-1)
+    const item = b.itemId ? ownItem(shopId, String(b.itemId)) : shopItems(shopId).filter((i) => i.status === 'live').at(-1)
     if (!item) throw new HttpError(404, 'No live item')
+    if (shopId !== MAIN_SHOP) await dailyLimit(`bots:${shopId}`, GUEST_BOTS_PER_DAY, `Guest shops can run the buyer agent ${GUEST_BOTS_PER_DAY} times a day.`)
     // Budgets: "tough" lands between floor and auto-accept so the owner gets the call;
     // "walk" sits under the floor so you can watch the floor hold; "deal" can reach auto-accept.
     const mode = String(b.mode ?? 'tough')
@@ -462,9 +524,9 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (method === 'POST' && parts[1] === 'questions' && parts[2] && parts[3] === 'answer') {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
     const q = questions.get(parts[2])
-    if (!q) throw new HttpError(404, 'Question not found')
+    if (!q || shopOfItem(items.get(q.itemId)) !== shopId) throw new HttpError(404, 'Question not found')
     const answer = String((await body(req)).answer ?? '').trim().slice(0, 500)
     if (!answer) throw new HttpError(400, 'Answer is empty')
     Object.assign(q, { status: 'answered', answer, answeredAt: new Date().toISOString() })
@@ -480,17 +542,17 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (method === 'POST' && url.pathname === '/api/merchant/reset') {
-    requireMerchant(req)
-    resetState()
-    jobs.clear()
-    latestJobId = undefined
+    const shopId = requireMerchant(req)
+    resetShop(shopId)
+    for (const [id, j] of jobs) if (j.shopId === shopId) jobs.delete(id)
+    if (shopId === MAIN_SHOP) latestJobId = undefined
     return send(res, 200, { ok: true })
   }
 
   if (method === 'POST' && parts[1] === 'approvals' && parts[2]) {
-    requireMerchant(req)
+    const shopId = requireMerchant(req)
     const a = approvals.get(parts[2])
-    if (!a) throw new HttpError(404, 'Approval not found')
+    if (!a || shopOfItem(items.get(a.itemId)) !== shopId || !items.has(a.itemId)) throw new HttpError(404, 'Approval not found')
     if (a.status !== 'pending') throw new HttpError(409, `Already ${a.status}`)
     const b = await body(req)
     const { decision } = b
@@ -518,12 +580,27 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     return send(res, 200, a)
   }
 
+  // --- Guest shops (anyone can try the app as an owner) ---
+
+  if (method === 'POST' && url.pathname === '/api/guest-shops') {
+    const ip = clientIp(req)
+    await dailyLimit(`guestshops:${ip}`, GUEST_SHOPS_PER_IP_PER_DAY, "You've made a few shops today already. Use the one you have, or come back tomorrow.")
+    await dailyLimit('guestshops', GUEST_SHOPS_SITE_PER_DAY, 'Lots of people are trying Snap & Sell today. Come back tomorrow!')
+    const now = new Date().toISOString()
+    const shop: Shop = { id: randomUUID().replace(/-/g, '').slice(0, 10), token: randomUUID().replace(/-/g, ''), kind: 'guest', createdAt: now, lastActiveAt: now }
+    shops.set(shop.id, shop)
+    logEvent('shop', 'Guest shop created', { shopId: shop.id })
+    return send(res, 201, { shopId: shop.id, token: shop.token, ...guestShopView(shop.id) })
+  }
+
   // --- Public (buyers + projector) ---
 
   if (method === 'GET' && parts[1] === 'items' && parts[2]) {
     const item = items.get(parts[2])
     if (!item) throw new HttpError(404, 'Item not found')
-    if (!parts[3]) return send(res, 200, { item: publicItem(item), stats: itemStats(item.id), buyUrl: `${PUBLIC_URL}/buy/${item.id}` })
+    // shopId lets the storefront and buyer pages link back to the right shop (null = main shop).
+    const shopId = shopOfItem(item) === MAIN_SHOP ? null : shopOfItem(item)
+    if (!parts[3]) return send(res, 200, { item: publicItem(item), shopId, stats: itemStats(item.id), buyUrl: `${PUBLIC_URL}/buy/${item.id}` })
     if (parts[3] === 'photo') return sendDataUrl(res, item.photos?.[Number(url.searchParams.get('i') ?? 0)] ?? item.photo ?? '')
     if (parts[3] === 'qr.svg') {
       const svg = await QRCode.toString(`${PUBLIC_URL}/buy/${item.id}`, { type: 'svg', margin: 1, color: { dark: '#1d1d1b', light: '#ffffff' } })
@@ -532,7 +609,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (method === 'GET' && url.pathname === '/api/shop') {
-    const visible = [...items.values()].filter((i) => i.status !== 'paused').reverse()
+    // ?s=<shopId> shows a guest shop's storefront; no parameter is the main shop.
+    const visible = shopItems(url.searchParams.get('s') || MAIN_SHOP).filter((i) => i.status !== 'paused').reverse()
     return send(res, 200, { items: visible.map((i) => ({ ...publicItem(i), interested: itemStats(i.id).buyers, highestOffer: i.status === 'live' ? offerBook(i.id).highest?.amount ?? null : null })) })
   }
 
@@ -541,7 +619,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   }
 
   if (method === 'GET' && url.pathname === '/api/stage') {
-    const live = [...items.values()].at(-1)
+    // The projector shows the owner's own shop only.
+    const live = shopItems(MAIN_SHOP).at(-1)
     const job = latestJobId ? jobs.get(latestJobId) : undefined
     // Show the research screen while a newer listing is being prepared.
     const fresh = job && !job.hidden && job.status !== 'error' && (job.status === 'running' || Date.now() - (job.finishedAt ?? 0) < 120_000)
@@ -551,8 +630,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       stats: live ? itemStats(live.id) : null,
       buyUrl: live ? `${PUBLIC_URL}/buy/${live.id}` : null,
       job: researching ? { id: researching.id, ...jobView(researching) } : null,
-      shop: shopStats(),
-      feed: feed(12),
+      shop: shopStats(MAIN_SHOP),
+      feed: feed(MAIN_SHOP, 12),
       agentChat: live ? agentChat(live.id) : null,
     })
   }
@@ -578,7 +657,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       if (!msg) throw new HttpError(400, 'Empty message')
       if (s.busy) throw new HttpError(429, 'Still replying to your last message')
       rateLimit(`msgs:${clientIp(req)}`, BUYER_MSGS_PER_10MIN, 10 * 60_000, "You're sending messages fast. Wait a few minutes.")
-      rateLimit('msgs:all', BUYER_MSGS_PER_DAY, 24 * 60 * 60_000, 'The shop is very busy today. Come back tomorrow.')
+      await dailyLimit('msgs:all', BUYER_MSGS_PER_DAY, 'The shop is very busy today. Come back tomorrow.')
       const turn = await runBuyerTurn(negotiatorId, s.sessionId, msg)
       return send(res, 200, { ...turn, item: publicItem(items.get(s.itemId)!), competition: competitionFor(s.sessionId) })
     }
@@ -598,6 +677,9 @@ async function route(req: IncomingMessage, res: ServerResponse) {
 
   throw new HttpError(404, 'Not found')
 }
+
+expireGuestShops()
+setInterval(expireGuestShops, 60 * 60_000).unref()
 
 createServer(async (req, res) => {
   try {

@@ -7,6 +7,15 @@ import { parseSalesCsv, type Item, type Sale } from './pricing.ts'
 
 export const items = new Map<string, Item>()
 
+// ---------------- Shops ----------------
+// MAIN_SHOP is the owner's own shop (MERCHANT_TOKEN). Visitors who try the app get a guest shop:
+// their own private items, buyers and approvals, deleted after GUEST_SHOP_DAYS without owner activity.
+export const MAIN_SHOP = 'main'
+export const GUEST_SHOP_DAYS = 7
+export type Shop = { id: string; token: string; kind: 'guest'; createdAt: string; lastActiveAt: string }
+export const shops = new Map<string, Shop>()
+export const shopOfItem = (item: Item | undefined) => item?.shopId ?? MAIN_SHOP
+
 export type BuyerSession = {
   sessionId: string
   itemId: string
@@ -62,7 +71,10 @@ export function noteForSession(sessionId: string, note: string) {
 export type LogEntry = { ts: string; kind: string; message: string; data?: unknown }
 export const log: LogEntry[] = []
 
-export function logEvent(kind: string, message: string, data?: unknown) {
+export function logEvent(kind: string, message: string, data?: Record<string, unknown>) {
+  // Every entry records its shop, so each owner's feed only shows their own shop.
+  const itemId = data?.itemId as string | undefined
+  if (data && !data.shopId && itemId) data.shopId = shopOfItem(items.get(itemId))
   const entry = { ts: new Date().toISOString(), kind, message, data }
   log.push(entry)
   console.log(`[${entry.ts.slice(11, 19)}] ${kind.padEnd(12)} ${message}`)
@@ -160,6 +172,7 @@ export function saveNow(): Promise<void> {
     buyerSessions: [...buyerSessions.values()].map(({ busy, ...s }) => s),
     approvals: [...approvals.values()],
     questions: [...questions.values()],
+    shops: [...shops.values()],
     log,
   }
   if (!remoteStore) {
@@ -205,21 +218,53 @@ export async function loadState() {
   for (const s of snap.buyerSessions ?? []) buyerSessions.set(s.sessionId, { ...s, busy: false })
   for (const a of snap.approvals ?? []) approvals.set(a.id, a)
   for (const q of snap.questions ?? []) questions.set(q.id, q)
+  for (const s of snap.shops ?? []) shops.set(s.id, s)
   log.push(...(snap.log ?? []))
   console.log(`Restored ${items.size} items, ${buyerSessions.size} buyer sessions from ${remoteStore ? 'Upstash' : 'data/state.json'} (saved ${snap.savedAt})`)
 }
 
-export function resetState() {
-  const itemIds = [...items.keys()]
-  items.clear()
-  buyerSessions.clear()
-  approvals.clear()
-  questions.clear()
+// Removes one shop's items and everything attached to them (buyers, approvals, questions, log, photos).
+export function resetShop(shopId: string) {
+  const itemIds = [...items.values()].filter((i) => shopOfItem(i) === shopId).map((i) => i.id)
+  const gone = new Set(itemIds)
+  for (const id of itemIds) items.delete(id)
+  for (const [id, s] of buyerSessions) if (gone.has(s.itemId)) buyerSessions.delete(id)
+  for (const [id, a] of approvals) if (gone.has(a.itemId)) approvals.delete(id)
+  for (const [id, q] of questions) if (gone.has(q.itemId)) questions.delete(id)
+  const keep = log.filter((e) => ((e.data ?? {}) as { shopId?: string }).shopId !== shopId && !gone.has(((e.data ?? {}) as { itemId?: string }).itemId ?? ''))
   log.length = 0
-  saveNow()
-  if (remoteStore && itemIds.length) {
-    writing = writing.then(() => redis('DEL', ...itemIds.map(photoKey))).then(() => itemIds.forEach((id) => photosSaved.delete(id)), (err) => console.error('Deleting photos from Upstash failed:', err.message))
+  log.push(...keep)
+  forgetPhotos(itemIds)
+  scheduleSave()
+}
+
+export function deleteShop(shopId: string) {
+  resetShop(shopId)
+  shops.delete(shopId)
+  scheduleSave()
+}
+
+// Deleted items' photos are removed from Upstash too, so guest shops don't fill the free storage.
+export function forgetPhotos(itemIds: string[]) {
+  if (!remoteStore || !itemIds.length) return
+  writing = writing.then(() => redis('DEL', ...itemIds.map(photoKey))).then(() => itemIds.forEach((id) => photosSaved.delete(id)), (err) => console.error('Deleting photos from Upstash failed:', err.message))
+}
+
+// Daily usage counters (listings, guest shops, buyer messages). In Upstash they survive the free plan's
+// restarts; locally they live in memory.
+const localCounts = new Map<string, number>()
+export async function countToday(key: string): Promise<number> {
+  const day = new Date().toISOString().slice(0, 10)
+  const k = `snapsell:count:${day}:${key}`
+  if (!remoteStore) {
+    if (localCounts.size > 10_000) localCounts.clear()
+    const n = (localCounts.get(k) ?? 0) + 1
+    localCounts.set(k, n)
+    return n
   }
+  const n = Number(await redis('INCR', k))
+  if (n === 1) await redis('EXPIRE', k, String(2 * 24 * 60 * 60))
+  return n
 }
 
 // Sales history, in order of preference:

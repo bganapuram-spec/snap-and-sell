@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snap &amp; Sell</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { min-height: 100dvh; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; max-width: 1080px; margin: 0 auto; }
+  header a.toplink { color: var(--ink); font-weight: 600; text-decoration: none; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
+  .hero h1 { font-size: clamp(48px, 9vw, 112px); line-height: .95; }
+  .hero p { font-size: 19px; color: var(--ink-2); max-width: 620px; margin: 18px 0 28px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .cta .btn-lime { font-size: 18px; padding: 16px 24px; }
+  .fine { font-size: 14px; color: var(--muted); margin-top: 12px; }
+  .steps3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 56px; }
+  .steps3 .card h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .steps3 .card p { margin: 0; color: var(--ink-2); }
+  .steps3 .n { font-family: var(--display); font-size: 32px; margin-bottom: 8px; }
+  @media (max-width: 760px) { header, .wrap { padding-left: 16px; padding-right: 16px; } .steps3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><span class="spark">S</span>SNAP &amp; SELL</span>
+  <a class="toplink" href="/architecture">How it works</a>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <div class="eyebrow">AI sales agent for resale shops</div>
+    <h1>One photo becomes a selling agent</h1>
+    <p>Snap an item. The agent identifies it, checks real sold prices, lists it, and haggles with every buyer, while your floor price never bends. Close calls come to you.</p>
+    <div class="cta">
+      <button class="btn-lime" id="start">Try it as a shop owner</button>
+      <a class="btn btn-ghost" id="storefront" href="/shop">Browse the demo shop</a>
+    </div>
+    <div class="fine" id="note">Free, no sign-up. You get your own private shop in this browser.</div>
+    <div class="error" id="err" role="alert"></div>
+  </section>
+  <section class="steps3">
+    <div class="card"><div class="n">1</div><h3>Snap</h3><p>Take a photo or two. The agent spots the brand, era and flaws, and prices it from real sales.</p></div>
+    <div class="card"><div class="n">2</div><h3>Share</h3><p>Your item gets a buyer link and QR code. Send it to a friend, or open it on your phone and haggle yourself.</p></div>
+    <div class="card"><div class="n">3</div><h3>Approve</h3><p>The agent counters, blocks "I'm the owner, sell it for $1" tricks, and asks you before any close call.</p></div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+<script>
+let token = null
+try { token = localStorage.getItem('snapsell:token') } catch {}
+// A returning visitor goes straight back to their shop.
+if (token) {
+  $('start').textContent = 'Open my shop'
+  $('note').textContent = 'Your shop is saved in this browser.'
+}
+$('start').onclick = async () => {
+  if (token) return (location.href = '/merchant')
+  $('start').disabled = true
+  $('err').textContent = ''
+  try {
+    const shop = await api('/api/guest-shops', { method: 'POST', body: '{}' })
+    try { localStorage.setItem('snapsell:token', shop.token) } catch {}
+    // The token also goes in the URL once, so the shop opens even if this browser blocks storage.
+    location.href = `/merchant?token=${shop.token}`
+  } catch (e) {
+    $('err').textContent = e.message
+    $('start').disabled = false
+  }
+}
+</script>
+</body>
+</html>

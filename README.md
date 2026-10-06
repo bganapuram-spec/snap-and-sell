@@ -52,6 +52,8 @@ For phones, expose it with `ngrok http 3000` and start with `PUBLIC_URL=<ngrok u
 
 Render's free plan has no disk and sleeps after 15 idle minutes (the next visitor waits about a minute), so the shop and the production agent ids are saved in Upstash and reloaded on wake-up. Photos are stored once per item; the shop state (without photos, last 300 log entries) is re-saved on each change. The first deploy creates its own 3 ZooWork agents, separate from the local ones. QR codes use Render's URL automatically (set `PUBLIC_URL` for a custom domain). Keep it at one instance; shop state lives in memory.
 
+**Guest shops.** The landing page (`/`) has a "Try it as a shop owner" button: one click gives a visitor their own private shop (token saved in their browser), with its own storefront at `/shop?s=<shopId>` and buyer links. Guests never see each other's shops or yours, the projector (`/stage`) shows only your shop, and guest sales don't feed pricing history. Guest shops are deleted after 7 days without their owner visiting. Daily caps (stored in Upstash, so restarts don't reset them): 5 listings per guest shop and 100 for all guests (`GUEST_LISTINGS_PER_DAY`, `GUEST_LISTINGS_SITE_PER_DAY`), 3 buyer-agent runs per guest shop, 3 new shops per visitor and 200 overall.
+
 Buyer chats cost ZooWork credits, so public visitors are limited to 5 new chats and 30 messages per 10 minutes each, and the shop to 1000 buyer messages a day (`BUYER_MSGS_PER_10MIN`, `BUYER_MSGS_PER_DAY`).
 
 Without the Upstash variables (local runs), everything is saved to `data/state.json` as before.

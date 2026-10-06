@@ -167,6 +167,10 @@
   .st { font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 4px 9px; border-radius: 99px; display: inline-block; white-space: nowrap; }
   .st-LIVE { background: #e9f9c4; color: #3d5200; } .st-NEGOTIATING { background: #fff1de; color: #9a4f00; } .st-PENDING { background: var(--warn); color: #fff; }
   .st-SOLD { background: var(--ink); color: #fff; } .st-PAUSED { background: var(--surface); color: var(--muted); }
+  .guestbar { background: var(--ink); color: #fff; font-size: 13px; padding: 8px 16px; display: flex; gap: 6px 14px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .guestbar[hidden] { display: none; }
+  .guestbar b { color: var(--lime); }
+  .guestbar a, .guestbar button { color: var(--lime); background: none; border: 0; padding: 0; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
   @media (max-width: 900px) {
     .top { grid-template-columns: 1fr auto; height: auto; padding: 12px 16px; row-gap: 10px; }
     .tabs { grid-column: 1 / -1; order: 3; justify-content: flex-start; overflow-x: auto; height: 36px; gap: 20px; }
@@ -183,11 +187,12 @@
   <nav class="tabs" id="tabs"></nav>
   <div class="top-actions">
     <span class="live-dot">Open</span>
-    <a href="/shop" target="_blank" class="toplink">Storefront ↗</a>
-    <a href="/stage" target="_blank" class="toplink">Projector ↗</a>
+    <a href="/shop" id="storeLink" target="_blank" class="toplink">Storefront ↗</a>
+    <a href="/stage" id="stageLink" target="_blank" class="toplink">Projector ↗</a>
     <button id="resetBtn" class="linkbtn">Reset demo</button>
   </div>
 </header>
+<div class="guestbar" id="guestbar" hidden></div>
 <div class="stepper" id="stepper" hidden></div>
 <div class="wrap" id="app"></div>
 <input type="file" id="file" accept="image/*" capture="environment" hidden>
@@ -724,7 +729,7 @@ function liveView() {
           el('div', { className: 'avatars' }, ...s.buyerNames.slice(0, 14).map(avatar), s.buyerNames.length > 14 ? el('span', { className: 'muted', textContent: `+${s.buyerNames.length - 14}` }) : null)) : null,
         !sold ? el('div', { className: 'botbox' },
           el('div', { style: 'font-weight:800', textContent: 'Send in a buyer agent' }),
-          el('div', { className: 'muted', style: 'font-size:13px;margin:2px 0 8px', textContent: 'An AI shopper haggles with your agent, same rules as people. Shows live on the projector.' }),
+          el('div', { className: 'muted', style: 'font-size:13px;margin:2px 0 8px', textContent: isGuest() ? 'An AI shopper haggles with your agent, same rules as people. Open the item to watch the chat.' : 'An AI shopper haggles with your agent, same rules as people. Shows live on the projector.' }),
           el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
             ...[['tough', 'Tough haggler'], ['walk', 'Lowballer (walks)'], ['deal', 'Easy deal']].map(([m, l]) => el('button', { className: m === 'tough' ? 'btn-lime' : 'btn-ghost', style: 'padding:9px 12px;font-size:14px', textContent: l, onclick: async (e) => {
               e.target.disabled = true
@@ -732,7 +737,8 @@ function liveView() {
               catch (x) { e.target.textContent = x.message; setTimeout(() => { e.target.textContent = l; e.target.disabled = false }, 2500) }
             } })))) : null,
         el('div', { className: 'actions' },
-          el('a', { className: 'btn btn-ghost', href: '/stage', target: '_blank', textContent: 'Open projector ↗' }),
+          isGuest() ? el('a', { className: 'btn btn-ghost', href: state.shopInfo.storefront, target: '_blank', textContent: 'Open storefront ↗' })
+            : el('a', { className: 'btn btn-ghost', href: '/stage', target: '_blank', textContent: 'Open projector ↗' }),
           el('button', { className: 'btn-lime', textContent: 'Snap next item', onclick: () => go('home') }))),
       el('div', { className: 'card' },
         el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px' }, el('h2', { textContent: 'Live shop' }), el('span', { className: 'live-dot', textContent: 'LIVE' })),
@@ -816,11 +822,50 @@ function showDeal(item) {
       el('button', { className: 'btn-lime btn-big', style: 'width:100%;margin-top:8px', textContent: 'Snap next item', onclick: (e) => { e.target.closest('.overlay').remove(); go('home') } }))))
 }
 
+// ---------------- Guest shops ----------------
+// Visitors trying the app get their own guest shop (see the landing page). Its storefront is separate,
+// the projector is the main shop's only, and the shop is deleted after a week without a visit.
+let resetLabel = 'Reset demo'
+let shopInfoShown = false
+function applyShopInfo(info) {
+  if (shopInfoShown || !info) return
+  shopInfoShown = true
+  $('storeLink').href = info.storefront
+  if (!info.guest) return
+  $('stageLink').hidden = true
+  resetLabel = 'Reset shop'
+  $('resetBtn').textContent = resetLabel
+  const ownerLink = `${location.origin}/merchant?token=${token}`
+  const copy = el('button', { textContent: 'Copy my owner link', onclick: async () => {
+    try { await navigator.clipboard.writeText(ownerLink); copy.textContent = 'Copied ✓ keep it private' }
+    catch { prompt('Your private owner link:', ownerLink) }
+  } })
+  $('guestbar').replaceChildren(
+    el('span', {}, el('b', { textContent: 'Guest shop' }), ` · ${info.listingsPerDay} listings a day · deleted after 7 days without a visit`),
+    el('a', { href: info.storefront, target: '_blank', textContent: 'My storefront ↗' }),
+    copy)
+  $('guestbar').hidden = false
+}
+const isGuest = () => !!state?.shopInfo?.guest
+
 // ---------------- Polling ----------------
 let lastKey = ''
 async function refresh() {
   try { state = await mapi('/api/merchant/state') }
-  catch (e) { $('app').replaceChildren(el('div', { className: 'card', style: 'text-align:center' }, el('h2', { textContent: 'Owner link required' }), el('p', { className: 'muted', textContent: e.message }))); return }
+  catch (e) {
+    // 401: no token, or a guest shop that expired. Offer a fresh one instead of a dead end.
+    if (e.http === 401) {
+      if (token) try { localStorage.removeItem('snapsell:token') } catch {}
+      $('app').replaceChildren(el('div', { className: 'card', style: 'text-align:center;max-width:520px;margin:40px auto' },
+        el('h2', { textContent: token ? 'This shop has expired' : 'Want to try it?' }),
+        el('p', { className: 'muted', textContent: token ? 'Guest shops are deleted after 7 days without a visit, or the link is wrong.' : 'Start your own free shop. No sign-up needed.' }),
+        el('a', { className: 'btn btn-lime', href: '/', textContent: 'Start a new shop' })))
+      return
+    }
+    $('app').replaceChildren(el('div', { className: 'card', style: 'text-align:center' }, el('h2', { textContent: 'Can’t reach the shop' }), el('p', { className: 'muted', textContent: e.message })))
+    return
+  }
+  applyShopInfo(state.shopInfo)
   for (const i of state.items) {
     if (i.status === 'sold' && !seenSold.has(i.id)) { seenSold.add(i.id); if (initialized) showDeal(i) }
   }
@@ -836,7 +881,7 @@ async function refresh() {
 
 let resetArmed = false
 $('resetBtn').onclick = async () => {
-  if (!resetArmed) { resetArmed = true; $('resetBtn').textContent = 'Tap again to wipe'; setTimeout(() => { resetArmed = false; $('resetBtn').textContent = 'Reset demo' }, 3000); return }
+  if (!resetArmed) { resetArmed = true; $('resetBtn').textContent = 'Tap again to wipe'; setTimeout(() => { resetArmed = false; $('resetBtn').textContent = resetLabel }, 3000); return }
   await mapi('/api/merchant/reset', { method: 'POST' })
   location.reload()
 }

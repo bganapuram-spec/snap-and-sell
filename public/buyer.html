@@ -45,7 +45,7 @@
 </head>
 <body>
 <header>
-  <a href="/shop" class="brand" style="text-decoration:none;color:inherit"><span class="spark">S</span>SNAP &amp; SELL</a>
+  <a href="/shop" id="shopLink" class="brand" style="text-decoration:none;color:inherit"><span class="spark">S</span>SNAP &amp; SELL</a>
   <span id="livePill" class="live-dot">LIVE</span>
 </header>
 
@@ -79,6 +79,8 @@
 <script src="/app.js"></script>
 <script>
 const itemId = location.pathname.split('/')[2]
+// The logo links back to this item's own shop (guest shops have their own storefront).
+api(`/api/items/${itemId}`).then((r) => { if (r.shopId) $('shopLink').href = `/shop?s=${encodeURIComponent(r.shopId)}` }).catch(() => {})
 const key = 'snapsell:' + itemId
 let sessionId = null
 try { sessionId = localStorage.getItem(key) } catch {}

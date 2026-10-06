@@ -3,6 +3,7 @@
 
 export type Item = {
   id: string
+  shopId?: string // missing = the main (owner's) shop
   title: string
   description: string
   listPrice: number

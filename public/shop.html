@@ -53,7 +53,7 @@
 <body>
 <div class="topbar">One-of-a-kind vintage · <b>Make an offer on anything</b> · Pickup in store</div>
 <header>
-  <a href="/shop" class="brand" style="text-decoration:none;color:inherit"><span class="spark">S</span>SNAP &amp; SELL SHOP</a>
+  <a href="/shop" id="home" class="brand" style="text-decoration:none;color:inherit"><span class="spark">S</span>SNAP &amp; SELL SHOP</a>
   <span class="live-dot">OPEN NOW</span>
 </header>
 <div class="wrap" id="app"></div>
@@ -63,10 +63,14 @@
 const parts = location.pathname.split('/').filter(Boolean)
 const itemId = parts[1] === 'item' ? parts[2] : null
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
+// ?s=<shopId> is a guest shop's storefront; no parameter is the main shop.
+const shopParam = new URLSearchParams(location.search).get('s')
+const shopHome = (id) => (id ? `/shop?s=${encodeURIComponent(id)}` : '/shop')
+$('home').href = shopHome(shopParam)
 
 async function grid() {
   let r
-  try { r = await api('/api/shop') } catch { return }
+  try { r = await api(shopParam ? `/api/shop?s=${encodeURIComponent(shopParam)}` : '/api/shop') } catch { return }
   const live = r.items.filter((i) => i.status === 'live')
   const sold = r.items.filter((i) => i.status === 'sold').slice(0, 6)
   const tile = (i) => el('a', { className: 'tile' + (i.status === 'sold' ? ' sold' : ''), href: `/shop/item/${i.id}` },
@@ -90,12 +94,13 @@ async function grid() {
 let shown = 0
 async function item() {
   let r
-  try { r = await api(`/api/items/${itemId}`) } catch { $('app').replaceChildren(el('div', { className: 'card empty' }, el('h2', { textContent: 'That item isn’t here anymore' }), el('a', { href: '/shop', textContent: '← Back to the shop' }))); return }
+  try { r = await api(`/api/items/${itemId}`) } catch { $('app').replaceChildren(el('div', { className: 'card empty' }, el('h2', { textContent: 'That item isn’t here anymore' }), el('a', { href: shopHome(shopParam), textContent: '← Back to the shop' }))); return }
   const i = r.item, f = i.facts || {}
+  $('home').href = shopHome(r.shopId)
   const live = i.status === 'live'
   const spec = [['Condition', cap(f.condition)], ['Brand', f.brand], ['Era', f.era], ['Material', f.material], ['Size', f.size], ['Color', cap(f.color)]].filter(([, v]) => v)
   $('app').replaceChildren(
-    el('a', { href: '/shop', className: 'back', textContent: '← All items' }),
+    el('a', { href: shopHome(r.shopId), className: 'back', textContent: '← All items' }),
     el('div', { className: 'item' },
       el('div', {},
         i.hasPhoto ? el('img', { className: 'photo', id: 'mainPhoto', src: `/api/items/${i.id}/photo?i=${shown}`, alt: i.title }) : el('div', { className: 'photo' }),

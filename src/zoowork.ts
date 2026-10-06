@@ -12,7 +12,7 @@ import {
   type SessionEvent,
 } from '@zoowork-ai/sdk'
 import { evaluateOffer, searchSales, type Item, type ItemFacts, type OfferDecision } from './pricing.ts'
-import { approvals, buyerSessions, competitionFor, items, loadPastSales, redis, remoteStore, logEvent, markSold, onSold, questions, scheduleSave, type BuyerSession } from './store.ts'
+import { approvals, buyerSessions, competitionFor, items, loadPastSales, MAIN_SHOP, redis, remoteStore, shopOfItem, logEvent, markSold, onSold, questions, scheduleSave, type BuyerSession } from './store.ts'
 
 export const client = createZooworkClient()
 
@@ -26,6 +26,8 @@ export const SHOP_MARKER = '⟦SHOP SYSTEM⟧'
 // Today's sale becomes tomorrow's comparable: every sale joins the shop history the agents search.
 export function addSaleToHistory(item: Item) {
   if (item.status !== 'sold' || item.soldPrice == null) return
+  // Guest shops are people trying the app; their test sales must not skew real pricing.
+  if (shopOfItem(item) !== MAIN_SHOP) return
   if (pastSales.sales.some((x) => x.title === `${item.title} (sold here ${item.soldAt?.slice(0, 10)})`)) return
   pastSales.sales.push({ title: `${item.title} (sold here ${item.soldAt?.slice(0, 10)})`, price: item.soldPrice, soldDate: item.soldAt?.slice(0, 10) ?? '', category: item.category ?? '' })
 }
