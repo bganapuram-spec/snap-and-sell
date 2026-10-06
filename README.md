@@ -39,10 +39,22 @@ cp .env.example .env        # add ZOOWORK_API_KEY and a MERCHANT_TOKEN
 npm run setup-agent         # creates the 3 ZooWork agents
 npm start                   # http://localhost:3000
 npm run test:pricing        # floor / counter rules
+npm run smoke               # live haggle against the ZooWork agent
 ```
 
 Pages: `/merchant?token=…` (owner), `/shop` (storefront), `/stage` (projector), `/architecture`.
 For phones, expose it with `ngrok http 3000` and start with `PUBLIC_URL=<ngrok url> npm start`.
+
+## Deploy (free: Render + Upstash)
+
+1. Make a free Redis database at [upstash.com](https://upstash.com) and copy its REST URL and token.
+2. In Render: New → Blueprint → pick this repo (`render.yaml` sets up a free Docker web service). Paste `ZOOWORK_API_KEY`, `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`; copy the generated `MERCHANT_TOKEN` to open `/merchant?token=…`.
+
+Render's free plan has no disk and sleeps after 15 idle minutes (the next visitor waits about a minute), so the shop and the production agent ids are saved in Upstash and reloaded on wake-up. Photos are stored once per item; the shop state (without photos, last 300 log entries) is re-saved on each change. The first deploy creates its own 3 ZooWork agents, separate from the local ones. QR codes use Render's URL automatically (set `PUBLIC_URL` for a custom domain). Keep it at one instance; shop state lives in memory.
+
+Buyer chats cost ZooWork credits, so public visitors are limited to 5 new chats and 30 messages per 10 minutes each, and the shop to 1000 buyer messages a day (`BUYER_MSGS_PER_10MIN`, `BUYER_MSGS_PER_DAY`).
+
+Without the Upstash variables (local runs), everything is saved to `data/state.json` as before.
 
 ## Stack
 

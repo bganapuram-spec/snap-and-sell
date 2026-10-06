@@ -12,7 +12,7 @@ import {
   type SessionEvent,
 } from '@zoowork-ai/sdk'
 import { evaluateOffer, searchSales, type Item, type ItemFacts, type OfferDecision } from './pricing.ts'
-import { approvals, buyerSessions, competitionFor, items, loadPastSales, redis, remoteStore, logEvent, markSold, onSold, questions, scheduleSave, type BuyerSession } from './store.ts'
+import { approvals, buyerSessions, competitionFor, items, loadPastSales, logEvent, markSold, onSold, questions, scheduleSave, type BuyerSession } from './store.ts'
 
 export const client = createZooworkClient()
 
@@ -208,25 +208,14 @@ async function ensure(id: string | undefined, resource: object): Promise<string>
   return id
 }
 
-// In production (no disk) the agent ids live in Upstash, so every restart reuses the same agents
-// instead of creating new ones. Production gets its own agents, separate from the local .agent.json.
-const AGENTS_KEY = 'snapsell:agents'
-async function readServerIds(): Promise<AgentIds> {
-  return remoteStore ? JSON.parse((await redis('GET', AGENTS_KEY)) ?? '{}') : readIds()
-}
-async function writeServerIds(ids: AgentIds) {
-  if (remoteStore) await redis('SET', AGENTS_KEY, JSON.stringify(ids))
-  else writeFileSync(AGENT_FILE, JSON.stringify(ids, null, 2))
-}
-
-export async function ensureAgents(): Promise<{ negotiatorId: string; listerId: string; shopperId: string }> {
-  const ids = await readServerIds()
+export async function ensureAgents(): Promise<{ negotiatorId: string; listerId: string }> {
+  const ids = readIds()
   const negotiatorId = await ensure(ids.agentId, NEGOTIATOR)
-  await writeServerIds({ ...ids, agentId: negotiatorId })
+  writeFileSync(AGENT_FILE, JSON.stringify({ ...ids, agentId: negotiatorId }, null, 2))
   const listerId = await ensure(ids.listerId, LISTER)
-  await writeServerIds({ ...ids, agentId: negotiatorId, listerId })
+  writeFileSync(AGENT_FILE, JSON.stringify({ agentId: negotiatorId, listerId }, null, 2))
   const shopperId = await ensure(ids.shopperId, SHOPPER)
-  await writeServerIds({ agentId: negotiatorId, listerId, shopperId })
+  writeFileSync(AGENT_FILE, JSON.stringify({ agentId: negotiatorId, listerId, shopperId }, null, 2))
   return { negotiatorId, listerId, shopperId }
 }
 

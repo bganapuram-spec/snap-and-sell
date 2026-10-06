@@ -2,6 +2,7 @@
 // Kept in memory and snapshotted to data/state.json so a server restart doesn't wipe the demo.
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { parseSalesCsv, type Item, type Sale } from './pricing.ts'
 
 export const items = new Map<string, Item>()
@@ -110,16 +111,49 @@ export function competitionFor(sessionId: string) {
 }
 
 // ---------------- Persistence ----------------
+// Locally the shop is saved to data/state.json. In production (free hosting, no disk) it is saved to
+// Upstash Redis instead, so a restart or idle spin-down doesn't wipe it.
 
-const STATE_FILE = new URL('../data/state.json', import.meta.url)
+// DATA_DIR overrides where state.json lives; locally it's ./data.
+export const DATA_DIR = process.env.DATA_DIR ? pathToFileURL(`${process.env.DATA_DIR.replace(/\/$/, '')}/`) : new URL('../data/', import.meta.url)
+const STATE_FILE = new URL('state.json', DATA_DIR)
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, '')
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
+export const remoteStore = !!(UPSTASH_URL && UPSTASH_TOKEN)
+const STATE_KEY = 'snapsell:state'
+const photoKey = (itemId: string) => `snapsell:photos:${itemId}`
+// The state is re-saved on every chat message, so remotely it keeps only the recent log.
+const REMOTE_LOG_LIMIT = 300
 let saveTimer: NodeJS.Timeout | undefined
 
+// Only the real server saves (loadState turns it on). Scripts and tests that import the store, like
+// npm run smoke, must never overwrite the shop's saved items.
+let persist = false
+
+export async function redis(...command: string[]): Promise<any> {
+  const res = await fetch(UPSTASH_URL!, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${UPSTASH_TOKEN}`, 'content-type': 'application/json' },
+    body: JSON.stringify(command),
+  })
+  const out = await res.json().catch(() => ({}))
+  if (!res.ok || out.error) throw new Error(`Upstash ${command[0]} failed: ${out.error ?? res.status}`)
+  return out.result
+}
+
 export function scheduleSave() {
+  if (!persist) return
   clearTimeout(saveTimer)
   saveTimer = setTimeout(saveNow, 300)
 }
 
-export function saveNow() {
+// Photos are large and never change, so remotely each item's photos are written once under their own key.
+const photosSaved = new Set<string>()
+let writing: Promise<void> = Promise.resolve()
+
+export function saveNow(): Promise<void> {
+  if (!persist) return Promise.resolve()
+  clearTimeout(saveTimer)
   const snapshot = {
     savedAt: new Date().toISOString(),
     items: [...items.values()],
@@ -128,29 +162,64 @@ export function saveNow() {
     questions: [...questions.values()],
     log,
   }
-  const tmp = new URL('../data/state.json.tmp', import.meta.url)
-  writeFileSync(tmp, JSON.stringify(snapshot))
-  renameSync(tmp, STATE_FILE)
+  if (!remoteStore) {
+    const tmp = new URL('state.json.tmp', DATA_DIR)
+    writeFileSync(tmp, JSON.stringify(snapshot))
+    renameSync(tmp, STATE_FILE)
+    return Promise.resolve()
+  }
+  // Writes run one after another so an older snapshot can never land after a newer one.
+  writing = writing.then(async () => {
+    for (const i of snapshot.items) {
+      if (photosSaved.has(i.id) || !i.photos?.length && !i.photo) continue
+      await redis('SET', photoKey(i.id), JSON.stringify({ photo: i.photo, photos: i.photos }))
+      photosSaved.add(i.id)
+    }
+    const light = { ...snapshot, items: snapshot.items.map(({ photo, photos, ...i }) => i), log: snapshot.log.slice(-REMOTE_LOG_LIMIT) }
+    await redis('SET', STATE_KEY, JSON.stringify(light))
+  }).catch((err) => console.error('Saving to Upstash failed:', err.message))
+  return writing
 }
 
-export function loadState() {
-  if (!existsSync(STATE_FILE)) return
-  const snap = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
+export async function loadState() {
+  persist = true
+  // Render stops the server with SIGTERM (deploys, idle spin-down): save first so nothing is lost.
+  for (const sig of ['SIGTERM', 'SIGINT'] as const) process.once(sig, () => { saveNow().finally(() => process.exit(0)) })
+  let snap: any
+  if (remoteStore) {
+    const raw = await redis('GET', STATE_KEY)
+    if (!raw) return console.log('No saved shop in Upstash yet: starting empty')
+    snap = JSON.parse(raw)
+    const ids: string[] = (snap.items ?? []).map((i: Item) => i.id)
+    const photos: (string | null)[] = ids.length ? await redis('MGET', ...ids.map(photoKey)) : []
+    ids.forEach((id, n) => {
+      if (!photos[n]) return
+      Object.assign(snap.items[n], JSON.parse(photos[n]!))
+      photosSaved.add(id)
+    })
+  } else {
+    if (!existsSync(STATE_FILE)) return
+    snap = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
+  }
   for (const i of snap.items ?? []) items.set(i.id, i)
   for (const s of snap.buyerSessions ?? []) buyerSessions.set(s.sessionId, { ...s, busy: false })
   for (const a of snap.approvals ?? []) approvals.set(a.id, a)
   for (const q of snap.questions ?? []) questions.set(q.id, q)
   log.push(...(snap.log ?? []))
-  console.log(`Restored ${items.size} items, ${buyerSessions.size} buyer sessions from data/state.json (saved ${snap.savedAt})`)
+  console.log(`Restored ${items.size} items, ${buyerSessions.size} buyer sessions from ${remoteStore ? 'Upstash' : 'data/state.json'} (saved ${snap.savedAt})`)
 }
 
 export function resetState() {
+  const itemIds = [...items.keys()]
   items.clear()
   buyerSessions.clear()
   approvals.clear()
   questions.clear()
   log.length = 0
   saveNow()
+  if (remoteStore && itemIds.length) {
+    writing = writing.then(() => redis('DEL', ...itemIds.map(photoKey))).then(() => itemIds.forEach((id) => photosSaved.delete(id)), (err) => console.error('Deleting photos from Upstash failed:', err.message))
+  }
 }
 
 // Sales history, in order of preference:

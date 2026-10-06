@@ -1,0 +1,18 @@
+# Render blueprint: one free web service. The free plan has no disk and sleeps after 15 idle minutes,
+# so the shop and agent ids are saved in Upstash Redis (free) and reloaded on wake-up.
+# Keep it at one instance: shop state is held in memory.
+services:
+  - type: web
+    name: snap-and-sell
+    runtime: docker
+    plan: free
+    healthCheckPath: /shop
+    envVars:
+      - key: ZOOWORK_API_KEY
+        sync: false # paste it in the Render dashboard
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false # from the Upstash database page (REST API section)
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: MERCHANT_TOKEN
+        generateValue: true # Render makes a random one; copy it from the dashboard

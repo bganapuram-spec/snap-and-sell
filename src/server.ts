@@ -9,11 +9,12 @@ import { approvals, buyerSessions, competitionFor, items, loadState, log, logEve
 import { addSaleToHistory, ensureAgents, MODEL, pastSales, runShopperBot, runBuyerTurn, runListing, startBuyerSession, type ListingDraft, type ListingStep } from './zoowork.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
-const PUBLIC_URL = (process.env.PUBLIC_URL ?? `http://localhost:${PORT}`).replace(/\/$/, '')
+// Render sets RENDER_EXTERNAL_URL itself, so QR codes point at the live site without extra config.
+const PUBLIC_URL = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/$/, '')
 const MERCHANT_TOKEN = process.env.MERCHANT_TOKEN
 if (!MERCHANT_TOKEN) throw new Error('Set MERCHANT_TOKEN in .env')
 
-loadState()
+await loadState()
 for (const i of items.values()) addSaleToHistory(i)
 const { negotiatorId, listerId, shopperId } = await ensureAgents()
 console.log(`Agents running: negotiator ${negotiatorId}, lister ${listerId}`)
@@ -255,6 +256,27 @@ async function body(req: IncomingMessage, limit = 20_000): Promise<any> {
 function send(res: ServerResponse, status: number, data: unknown, type = 'application/json') {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' })
   res.end(type === 'application/json' ? JSON.stringify(data) : (data as string | Buffer))
+}
+
+// Every buyer chat costs ZooWork credits, so public visitors get limits: per visitor (by IP) and a
+// daily cap for the whole shop. Tune with BUYER_MSGS_PER_10MIN / BUYER_MSGS_PER_DAY.
+const BUYER_MSGS_PER_10MIN = Number(process.env.BUYER_MSGS_PER_10MIN ?? 30)
+const BUYER_CHATS_PER_10MIN = 5
+const BUYER_MSGS_PER_DAY = Number(process.env.BUYER_MSGS_PER_DAY ?? 1000)
+const hits = new Map<string, number[]>()
+
+function rateLimit(key: string, max: number, windowMs: number, message: string) {
+  const now = Date.now()
+  if (hits.size > 10_000) hits.clear()
+  const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs)
+  if (recent.length >= max) throw new HttpError(429, message)
+  recent.push(now)
+  hits.set(key, recent)
+}
+
+function clientIp(req: IncomingMessage) {
+  // Render's proxy puts the visitor's address first in x-forwarded-for.
+  return String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
 }
 
 function requireMerchant(req: IncomingMessage) {
@@ -538,6 +560,7 @@ async function route(req: IncomingMessage, res: ServerResponse) {
   if (method === 'POST' && parts[1] === 'items' && parts[2] && parts[3] === 'buyers') {
     const item = items.get(parts[2])
     if (!item) throw new HttpError(404, 'Item not found')
+    rateLimit(`chats:${clientIp(req)}`, BUYER_CHATS_PER_10MIN, 10 * 60_000, "You've started a lot of chats. Wait a few minutes.")
     const { name } = await body(req)
     const buyerName = String(name ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 24) || `Buyer #${buyerSessions.size + 1}`
     const s = await startBuyerSession(negotiatorId, item.id, buyerName)
@@ -554,6 +577,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
       const msg = String(text ?? '').trim().slice(0, 500)
       if (!msg) throw new HttpError(400, 'Empty message')
       if (s.busy) throw new HttpError(429, 'Still replying to your last message')
+      rateLimit(`msgs:${clientIp(req)}`, BUYER_MSGS_PER_10MIN, 10 * 60_000, "You're sending messages fast. Wait a few minutes.")
+      rateLimit('msgs:all', BUYER_MSGS_PER_DAY, 24 * 60 * 60_000, 'The shop is very busy today. Come back tomorrow.')
       const turn = await runBuyerTurn(negotiatorId, s.sessionId, msg)
       return send(res, 200, { ...turn, item: publicItem(items.get(s.itemId)!), competition: competitionFor(s.sessionId) })
     }
@@ -584,5 +609,6 @@ createServer(async (req, res) => {
   }
 }).listen(PORT, () => {
   console.log(`\nProjector: ${PUBLIC_URL}/stage`)
-  console.log(`Owner:     ${PUBLIC_URL}/merchant?token=${MERCHANT_TOKEN}`)
+  // Host logs aren't private, so the owner token is only printed when running locally.
+  console.log(`Owner:     ${PUBLIC_URL}/merchant?token=${PUBLIC_URL.includes('localhost') ? MERCHANT_TOKEN : '<MERCHANT_TOKEN>'}`)
 })

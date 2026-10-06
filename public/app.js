@@ -14,13 +14,27 @@ window.el = (tag, props = {}, ...kids) => {
   return n
 }
 
+// Never hangs: requests time out, and reads retry, so a flaky tunnel can't freeze a page.
 window.api = async (path, opts = {}, token) => {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers['X-Merchant-Token'] = token
-  const res = await fetch(path, { ...opts, headers })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || 'Something went wrong')
-  return data
+  const isRead = !opts.method || opts.method === 'GET'
+  const timeoutMs = opts.timeoutMs ?? (isRead ? 15000 : 45000)
+  for (let attempt = 0; ; attempt++) {
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), timeoutMs)
+    try {
+      const res = await fetch(path, { ...opts, headers, signal: ctl.signal })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { http: res.status })
+      return data
+    } catch (e) {
+      const network = !e.http
+      if (isRead && network && attempt < 2) { await new Promise((r) => setTimeout(r, 1000 * (attempt + 1))); continue }
+      if (network) throw new Error(e.name === 'AbortError' ? 'Connection timed out.' : 'Connection problem.')
+      throw e
+    } finally { clearTimeout(timer) }
+  }
 }
 
 window.money = (n) => (n == null ? '—' : '$' + (Number.isInteger(n) ? n : Number(n).toFixed(2)))

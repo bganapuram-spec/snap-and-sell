@@ -513,7 +513,7 @@ async function startListing(photos) {
     const j = await mapi('/api/listings', { method: 'POST', body: JSON.stringify({ photos: urls }) })
     job = { ...j, localPhoto: urls[0], localPhotos: urls }
     pollJob()
-  } catch (e) { job.status = 'error'; job.error = e.message; render() }
+  } catch (e) { job.status = 'error'; job.error = e.message + ' Your photos are kept.'; render(); updateHomework() }
 }
 
 async function pollJob() {
@@ -547,6 +547,7 @@ function homeworkView() {
       el('h1', { textContent: 'Doing the homework', style: 'font-size:38px;margin:6px 0 22px' }),
       el('ul', { className: 'steps', id: 'steps' }),
       el('div', { className: 'ready', id: 'ready', hidden: true, textContent: 'READY TO SELL ' }),
+      el('div', { id: 'hwLog' }),
       el('p', { className: 'error', id: 'hwErr' }),
       el('div', { id: 'hwRetry' })))
 }
@@ -561,11 +562,13 @@ function updateHomework() {
       el('div', {}, el('div', { className: 't', textContent: title }),
         el('div', { className: 's', textContent: st === 'done' && job.status === 'done' ? done(job) : st === 'pending' ? '' : working })))
   }))
-  $('hwLog').replaceChildren(researchLog(job.activity || []))
+  if ($('hwLog')) $('hwLog').replaceChildren(researchLog(job.activity || []))
   $('hwTimer').textContent = job.status === 'done' ? `Done in ${job.seconds}s` : `Doing the homework… ${job.elapsed ?? 0}s`
   if (job.status === 'error') {
     $('hwErr').textContent = 'Something went wrong: ' + (job.error || 'unknown error')
-    $('hwRetry').replaceChildren(el('button', { className: 'btn-lime', textContent: 'Try again', onclick: () => go('home') }))
+    $('hwRetry').replaceChildren(
+      el('button', { textContent: 'Retry upload', onclick: () => startListing(job.localPhotos || [job.localPhoto]) }),
+      el('button', { className: 'btn-ghost', style: 'margin-left:8px', textContent: 'Start over', onclick: () => go('home') }))
   }
 }
 
