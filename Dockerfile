@@ -8,6 +8,7 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 COPY public ./public
+COPY seed ./seed
 # Read-only sales data ships in the image; the shop and agent ids are saved in Upstash (see render.yaml).
 COPY data/resale_sales.csv data/past_sales.SAMPLE.csv ./data/
 

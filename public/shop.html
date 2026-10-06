@@ -88,7 +88,8 @@ async function grid() {
         el('p', { textContent: 'Every piece is one of a kind. See something you like? Make an offer. Our shop agent negotiates for real, the owner signs off on close calls.' })),
       el('div', { className: 'count', textContent: `${live.length} item${live.length === 1 ? '' : 's'} available` })),
     live.length ? el('div', { className: 'grid' }, ...live.map(tile)) : el('div', { className: 'card empty' }, el('h2', { textContent: 'New stock coming soon' }), el('p', { className: 'muted', textContent: 'Check back in a minute.' })),
-    ...(sold.length ? [el('div', { className: 'section' }, el('h2', { textContent: 'Recently sold' }), el('div', { className: 'grid' }, ...sold.map(tile)))] : []))
+    ...(sold.length ? [el('div', { className: 'section' }, el('h2', { textContent: 'Recently sold' }), el('div', { className: 'grid' }, ...sold.map(tile)))] : []),
+    r.items.some((i) => i.credit) ? el('p', { className: 'credit', style: 'margin-top:48px', textContent: 'Demo items: photos from Wikimedia Commons under Creative Commons licenses, credited on each item’s page. Sold demo items come back in stock after a few minutes.' }) : null)
 }
 
 let shown = 0
@@ -106,7 +107,8 @@ async function item() {
         i.hasPhoto ? el('img', { className: 'photo', id: 'mainPhoto', src: `/api/items/${i.id}/photo?i=${shown}`, alt: i.title }) : el('div', { className: 'photo' }),
         i.photoCount > 1 ? el('div', { className: 'gallery' }, ...Array.from({ length: i.photoCount }, (_, n) => el('img', {
           src: `/api/items/${i.id}/photo?i=${n}`, alt: `Photo ${n + 1}`, className: n === shown ? 'on' : '',
-          onclick: () => { shown = n; $('mainPhoto').src = `/api/items/${i.id}/photo?i=${n}`; document.querySelectorAll('.gallery img').forEach((g, k) => g.classList.toggle('on', k === n)) } }))) : null),
+          onclick: () => { shown = n; $('mainPhoto').src = `/api/items/${i.id}/photo?i=${n}`; document.querySelectorAll('.gallery img').forEach((g, k) => g.classList.toggle('on', k === n)) } }))) : null,
+        photoCredit(i.credit)),
       el('div', {},
         el('h1', { textContent: i.title }),
         el('div', { className: 'cat', textContent: [cap(f.condition) && cap(f.condition) + ' condition', f.brand, f.era].filter(Boolean).join(' · ') || 'Vintage' }),

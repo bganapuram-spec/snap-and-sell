@@ -1,11 +1,11 @@
 // HTTP server: owner app, projector page, and buyer chat. No framework, just node:http.
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import QRCode from 'qrcode'
 import { applyShopRules, searchSales, summarize, type Item } from './pricing.ts'
-import { approvals, buyerSessions, competitionFor, countToday, deleteShop, forgetPhotos, GUEST_SHOP_DAYS, items, loadState, log, logEvent, MAIN_SHOP, markSold, noteForSession, offerBook, questions, resetShop, shopOfItem, shops, type Shop } from './store.ts'
+import { approvals, buyerSessions, competitionFor, countToday, deleteShop, forgetPhotos, GUEST_SHOP_DAYS, items, loadState, log, logEvent, MAIN_SHOP, markSold, noteForSession, offerBook, questions, resetShop, scheduleSave, shopOfItem, shops, type Shop } from './store.ts'
 import { addSaleToHistory, ensureAgents, MODEL, pastSales, runShopperBot, runBuyerTurn, runListing, startBuyerSession, type ListingDraft, type ListingStep } from './zoowork.ts'
 
 const PORT = Number(process.env.PORT ?? 3000)
@@ -18,6 +18,47 @@ await loadState()
 for (const i of items.values()) addSaleToHistory(i)
 const { negotiatorId, listerId, shopperId } = await ensureAgents()
 console.log(`Agents running: negotiator ${negotiatorId}, lister ${listerId}`)
+
+// ---------------- Demo items ----------------
+// seed/demo-items.json: real lister output for CC-licensed photos, so visitors find a stocked shop.
+// Loaded whenever the main shop is empty (a fresh deploy, or after "Reset demo").
+const SEED_DIR = new URL('../seed/', import.meta.url)
+function seedDemoItems() {
+  const file = new URL('demo-items.json', SEED_DIR)
+  if (process.env.SEED_DEMO_ITEMS === '0' || !existsSync(file) || [...items.values()].some((i) => shopOfItem(i) === MAIN_SHOP)) return
+  const seeds = JSON.parse(readFileSync(file, 'utf8'))
+  const now = Date.now()
+  // Inserted last-to-first: the storefront shows newest first, so the first seed leads the page.
+  ;[...seeds].reverse().forEach((d: any, n: number) => {
+    const photo = `data:image/jpeg;base64,${readFileSync(new URL(d.photo, SEED_DIR)).toString('base64')}`
+    const item: Item = {
+      id: randomUUID().slice(0, 8), shopId: MAIN_SHOP, demo: true, credit: d.credit,
+      title: d.title, description: d.description, category: d.category,
+      listPrice: d.listPrice, autoAcceptAt: d.autoAcceptAt, floor: d.floor, status: 'live',
+      photo, photos: [photo], facts: d.facts, market: d.market, history: d.history,
+      createdAt: new Date(now - (seeds.length - n) * 60_000).toISOString(),
+    }
+    items.set(item.id, item)
+  })
+  scheduleSave()
+  console.log(`Stocked the shop with ${seeds.length} demo items`)
+}
+
+// A sold demo item comes back after DEMO_RESTOCK_MINUTES, with its old chats cleared, so the demo
+// shop never sells out. Checked on a timer (not per sale) so it also works after a restart.
+const DEMO_RESTOCK_MINUTES = 10
+function restockDemoItems() {
+  for (const item of items.values()) {
+    if (!item.demo || item.status !== 'sold' || Date.now() - Date.parse(item.soldAt ?? '') < DEMO_RESTOCK_MINUTES * 60_000) continue
+    for (const k of ['soldPrice', 'soldTo', 'soldFirstOffer', 'soldAt', 'soldVia'] as const) delete item[k]
+    item.status = 'live'
+    for (const [id, s] of buyerSessions) if (s.itemId === item.id) buyerSessions.delete(id)
+    for (const [id, a] of approvals) if (a.itemId === item.id) approvals.delete(id)
+    for (const [id, q] of questions) if (q.itemId === item.id) questions.delete(id)
+    logEvent('listing', `${item.title} back in stock`, { itemId: item.id })
+  }
+}
+seedDemoItems()
 
 const STATIC: Record<string, [string, string]> = {
   '/merchant': ['merchant.html', 'text/html'],
@@ -128,6 +169,7 @@ function publicItem(item: Item) {
     soldPrice: item.soldPrice, soldTo: item.soldTo, soldFirstOffer: item.soldFirstOffer, hasPhoto: !!item.photo, photoCount: item.photos?.length ?? (item.photo ? 1 : 0),
     facts: item.facts ? { condition: item.facts.condition, flaws: item.facts.flaws, highlights: item.facts.highlights, brand: item.facts.brand, era: item.facts.era, material: item.facts.material, size: item.facts.size, color: item.facts.color, acquired: item.facts.acquired ?? null, merchantNotes: item.facts.merchantNotes ?? null } : null,
     createdAt: item.createdAt,
+    credit: item.credit ?? null,
   }
 }
 
@@ -546,6 +588,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
     resetShop(shopId)
     for (const [id, j] of jobs) if (j.shopId === shopId) jobs.delete(id)
     if (shopId === MAIN_SHOP) latestJobId = undefined
+    // The main shop restocks with demo items, so the public storefront is never empty.
+    if (shopId === MAIN_SHOP) seedDemoItems()
     return send(res, 200, { ok: true })
   }
 
@@ -680,6 +724,8 @@ async function route(req: IncomingMessage, res: ServerResponse) {
 
 expireGuestShops()
 setInterval(expireGuestShops, 60 * 60_000).unref()
+restockDemoItems()
+setInterval(restockDemoItems, 60_000).unref()
 
 createServer(async (req, res) => {
   try {

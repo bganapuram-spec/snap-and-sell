@@ -1,0 +1,432 @@
+[
+ {
+  "key": "varsity_jacket",
+  "photo": "varsity_jacket.jpg",
+  "title": "Vintage 1963 Orange State Titans Wool & Leather Varsity Jacket",
+  "description": "A true 1960s collegiate letterman: royal blue wool body, cream leather sleeves, big orange felt \"OS\" chenille patch and \"Orange State Titans College '63\" embroidery. Striped knit collar, cuffs and waistband and snap-front closure. Cream leather shows honest wear with some scuffing and light discoloration on the sleeves and cuffs, which adds to the vintage character.",
+  "category": "outerwear",
+  "listPrice": 130,
+  "autoAcceptAt": 121,
+  "floor": 121,
+  "facts": {
+   "brand": null,
+   "era": "60s",
+   "material": "wool body with leather sleeves",
+   "size": null,
+   "color": "royal blue with cream sleeves and orange accents",
+   "condition": "good",
+   "flaws": [
+    "scuffing and light staining on the cream leather sleeves",
+    "darkened or soiled knit cuffs",
+    "possible light wear at the pockets"
+   ],
+   "highlights": [
+    "wool body with genuine leather sleeves",
+    "large felt chenille \"OS\" letter patch",
+    "embroidered 'Orange State Titans College 63' lettering",
+    "striped knit collar, cuffs and waistband",
+    "snap-front closure",
+    "no obvious holes in the wool"
+   ]
+  },
+  "market": {
+   "count": 4,
+   "min": 62.99,
+   "max": 207,
+   "median": 150
+  },
+  "history": {
+   "count": 8,
+   "min": 14,
+   "max": 188,
+   "median": 25,
+   "prices": [
+    14,
+    20,
+    29,
+    188,
+    25,
+    30,
+    14,
+    16
+   ]
+  },
+  "credit": {
+   "author": "Pellaman",
+   "license": "CC BY-SA 4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:1963_Orange_State_College(CSUF)_Titans_Lettermen%27s_Jacket2.jpg"
+  }
+ },
+ {
+  "key": "polaroid_camera",
+  "photo": "polaroid_camera.jpg",
+  "title": "Polaroid Supercolor 1000 Land Camera with Flash Bar",
+  "description": "A classic Polaroid Supercolor 1000 Land Camera with the iconic rainbow stripe, red shutter button and a flash bar attached. The white and black body looks clean and well kept, with no cracks or missing pieces visible. A fun, collectible piece for instant-film fans and vintage camera shelves.",
+  "category": "cameras",
+  "listPrice": 55,
+  "autoAcceptAt": 51,
+  "floor": 51,
+  "facts": {
+   "brand": "Polaroid",
+   "era": "'70s-'80s",
+   "material": "plastic",
+   "size": null,
+   "color": "white and black",
+   "condition": "good",
+   "flaws": [],
+   "highlights": [
+    "Iconic rainbow stripe",
+    "Red shutter button",
+    "Flash bar attached",
+    "Clean white body, no cracks seen",
+    "Supercolor 1000 branding is readable"
+   ]
+  },
+  "market": {
+   "count": 4,
+   "min": 39,
+   "max": 135,
+   "median": 90
+  },
+  "history": {
+   "count": 8,
+   "min": 14,
+   "max": 56,
+   "median": 38,
+   "prices": [
+    14,
+    51,
+    23,
+    56,
+    38,
+    36,
+    20,
+    51
+   ]
+  },
+  "credit": {
+   "author": "Jacek Halicki",
+   "license": "CC BY-SA 4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:2023_Aparat_Polaroid_Land_Camera_Supercolor_1000_(5).jpg"
+  }
+ },
+ {
+  "key": "cowboy_boots",
+  "photo": "cowboy_boots.jpg",
+  "title": "Vintage Tan Leather Tall Riding Boots, Well-Worn",
+  "description": "Tall pull-on boots in rich honey-tan leather that has picked up a lovely patina over the years. The shaft is soft and slouchy, with a stacked heel and a leather sole that has seen real wear. These are honestly broken-in boots with plenty of character, and they'd look great with jeans or a skirt.",
+  "category": "shoes",
+  "listPrice": 65,
+  "autoAcceptAt": 60,
+  "floor": 60,
+  "facts": {
+   "brand": null,
+   "era": null,
+   "material": "leather",
+   "size": null,
+   "color": "tan",
+   "condition": "fair",
+   "flaws": [
+    "heavy wear and scuffing on the leather soles",
+    "worn, dirty heels",
+    "darkened, stained patches on the leather shaft",
+    "creasing and wrinkling at the ankle and shaft"
+   ],
+   "highlights": [
+    "soft honey-tan leather with a rich patina",
+    "tall pull-on riding style",
+    "stacked leather heel",
+    "leather sole, apparently stitched"
+   ]
+  },
+  "market": {
+   "count": 5,
+   "min": 32,
+   "max": 125,
+   "median": 95
+  },
+  "history": {
+   "count": 8,
+   "min": 10,
+   "max": 56,
+   "median": 28,
+   "prices": [
+    28,
+    26,
+    20,
+    56,
+    18,
+    35,
+    10,
+    29
+   ]
+  },
+  "credit": {
+   "author": "Nikodem Nijaki",
+   "license": "CC BY-SA 3.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Cowboy_boots_IMGP9037.jpg"
+  }
+ },
+ {
+  "key": "flannel_shirt",
+  "photo": "flannel_shirt.jpg",
+  "title": "Vintage Teal & Amber Ombré Plaid Wool Shirt Jacket",
+  "description": "A cozy shirt-jacket in a bold teal, amber and slate ombré plaid, with gold snap buttons, two roomy patch pockets and a curved hem. The fabric is soft and brushed, and the cuffs turn back for an easy layered look. It's in good vintage condition with no holes or stains that I could see.",
+  "category": "outerwear",
+  "listPrice": 42,
+  "autoAcceptAt": 39,
+  "floor": 39,
+  "facts": {
+   "brand": null,
+   "era": null,
+   "material": "brushed wool or wool-blend flannel",
+   "size": null,
+   "color": "teal, amber and slate plaid",
+   "condition": "good",
+   "flaws": [],
+   "highlights": [
+    "bold teal, amber and slate ombré plaid",
+    "gold snap-front closure",
+    "two patch pockets",
+    "curved shirttail hem",
+    "turn-back cuffs",
+    "no holes or stains visible"
+   ]
+  },
+  "market": {
+   "count": 1,
+   "min": 26.42,
+   "max": 26.42,
+   "median": 26.42
+  },
+  "history": {
+   "count": 8,
+   "min": 14,
+   "max": 188,
+   "median": 25,
+   "prices": [
+    14,
+    20,
+    29,
+    188,
+    25,
+    24,
+    30,
+    14
+   ]
+  },
+  "credit": {
+   "author": "kelly",
+   "license": "CC BY-SA 2.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Flannel_Shirt_For_Abi.jpg"
+  }
+ },
+ {
+  "key": "vintage_film_camera",
+  "photo": "vintage_film_camera.jpg",
+  "title": "Beacon II 127 Film Camera with Flash, Whitehouse c.1947",
+  "description": "A handsome black Beacon II box camera by Whitehouse Products, made in the late 1940s. It comes with its chrome faceted reflector flash attachment, which gives it a lot of mid-century charm. The body looks clean with bright chrome trim and crisp textured finish. A great display piece for any camera or vintage collector.",
+  "category": "cameras",
+  "listPrice": 39,
+  "autoAcceptAt": 36,
+  "floor": 36,
+  "facts": {
+   "brand": "Whitehouse Products (Beacon)",
+   "era": "40s",
+   "material": "molded plastic body with chrome trim",
+   "size": null,
+   "color": "black and chrome",
+   "condition": "good",
+   "flaws": [
+    "light surface scratches visible on the flash reflector"
+   ],
+   "highlights": [
+    "Beacon II model with the flash unit attached",
+    "bright chrome trim",
+    "clean black textured body",
+    "faceted mirror reflector intact"
+   ]
+  },
+  "market": {
+   "count": 3,
+   "min": 20,
+   "max": 42,
+   "median": 38
+  },
+  "history": {
+   "count": 0,
+   "min": null,
+   "max": null,
+   "median": null,
+   "prices": []
+  },
+  "credit": {
+   "author": "Joe Haupt from USA",
+   "license": "CC BY-SA 2.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Vintage_Beacon_II_Film_Camera_By_Whitehouse_Products_With_Optional_Flash_Unit_(22274785336).jpg"
+  }
+ },
+ {
+  "key": "silk_scarf",
+  "photo": "silk_scarf.jpg",
+  "title": "Madhubani Print Tussar Silk Stole with Fringe",
+  "description": "A beautiful hand-feel silk stole printed with traditional Madhubani folk art: a parade of elephants, musicians and dancers in teal, crimson, mustard and red on a natural oatmeal ground. Finished with soft, hand-knotted fringe at the ends. Warm, earthy and full of detail, it works as a wrap, scarf or wall hanging.",
+  "category": "accessories",
+  "listPrice": 28,
+  "autoAcceptAt": 26,
+  "floor": 26,
+  "facts": {
+   "brand": null,
+   "era": null,
+   "material": "tussar-style silk (unverified)",
+   "size": null,
+   "color": "natural beige with teal, red and mustard",
+   "condition": "good",
+   "flaws": [
+    "Fringe looks slightly uneven and a little loose or frayed at the edge",
+    "Only one close-up was seen, so the rest of the piece is unchecked"
+   ],
+   "highlights": [
+    "Traditional Madhubani elephant and figure motifs",
+    "Rich teal, crimson and mustard palette",
+    "Natural tussar-style textured silk",
+    "Hand-knotted fringe ends"
+   ]
+  },
+  "market": {
+   "count": 4,
+   "min": 26,
+   "max": 55,
+   "median": 30
+  },
+  "history": {
+   "count": 8,
+   "min": 5,
+   "max": 103,
+   "median": 30,
+   "prices": [
+    5,
+    14,
+    59,
+    103,
+    30,
+    54,
+    13,
+    15
+   ]
+  },
+  "credit": {
+   "author": "Kritzolina",
+   "license": "CC BY-SA 4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Colored_silk_scarf_from_India_04.jpg"
+  }
+ },
+ {
+  "key": "wristwatch_leather_strap",
+  "photo": "wristwatch_leather_strap.jpg",
+  "title": "Poedagar Men's Blue Dial Quartz Watch, Leather Strap",
+  "description": "A bold fashion watch with a deep sunburst blue dial, silver and copper-toned faceted bezel, and luminous hands. It has a black croc-embossed leather strap and a quartz movement. It's a good everyday dress watch with plenty of colour. The case and strap look to be in good shape.",
+  "category": "accessories",
+  "listPrice": 25,
+  "autoAcceptAt": 23,
+  "floor": 23,
+  "facts": {
+   "brand": "Poedagar (dial text suggests; unconfirmed)",
+   "era": null,
+   "material": "Metal alloy case with leather strap",
+   "size": null,
+   "color": "Blue and black",
+   "condition": "good",
+   "flaws": [
+    "Bezel shows some tonal variation and wear that could be patina or the finish",
+    "Strap has not been checked up close for creasing"
+   ],
+   "highlights": [
+    "Deep sunburst blue dial with crystal-style hour markers",
+    "Faceted two-tone bezel",
+    "Black croc-embossed leather strap",
+    "Luminous hands"
+   ]
+  },
+  "market": {
+   "count": 2,
+   "min": 7,
+   "max": 25,
+   "median": 25
+  },
+  "history": {
+   "count": 6,
+   "min": 11,
+   "max": 40,
+   "median": 29,
+   "prices": [
+    40,
+    33,
+    22,
+    20,
+    11,
+    29
+   ]
+  },
+  "credit": {
+   "author": "A S M Jobaer",
+   "license": "CC BY-SA 4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Angled_view_of_a_fashion_wristwatch_with_purple_dial_and_leather_strap_02.jpg"
+  }
+ },
+ {
+  "key": "aviator_sunglasses",
+  "photo": "aviator_sunglasses.jpg",
+  "title": "Silver Mirrored Aviator Sunglasses, Blue-Green Lens",
+  "description": "Classic teardrop aviators with a slim silver metal frame and blue-green mirrored lenses that flash purple and green in the light. Comfortable nose pads and sturdy hinges. They are a good everyday pair or a throwback accessory. The lenses and frame look clean in our check.",
+  "category": "accessories",
+  "listPrice": 18,
+  "autoAcceptAt": 17,
+  "floor": 17,
+  "facts": {
+   "brand": null,
+   "era": null,
+   "material": "metal frame with mirrored lenses",
+   "size": null,
+   "color": "silver with blue-green mirror",
+   "condition": "good",
+   "flaws": [
+    "Only one angle seen, so the lens coating and the inside of the frame are unchecked"
+   ],
+   "highlights": [
+    "Classic aviator shape",
+    "Blue-green mirrored lenses",
+    "Slim silver metal frame",
+    "Nose pads and temple tips are intact",
+    "No obvious scratches or bent parts visible"
+   ]
+  },
+  "market": {
+   "count": 2,
+   "min": 9.98,
+   "max": 75,
+   "median": 75
+  },
+  "history": {
+   "count": 8,
+   "min": 7,
+   "max": 99,
+   "median": 19,
+   "prices": [
+    58,
+    85,
+    7,
+    14,
+    7,
+    99,
+    19,
+    10
+   ]
+  },
+  "credit": {
+   "author": "Gohstyman",
+   "license": "CC BY 4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Aviator_sunglasses_2.jpg"
+  }
+ }
+]

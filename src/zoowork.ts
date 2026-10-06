@@ -27,7 +27,7 @@ export const SHOP_MARKER = '⟦SHOP SYSTEM⟧'
 export function addSaleToHistory(item: Item) {
   if (item.status !== 'sold' || item.soldPrice == null) return
   // Guest shops are people trying the app; their test sales must not skew real pricing.
-  if (shopOfItem(item) !== MAIN_SHOP) return
+  if (shopOfItem(item) !== MAIN_SHOP || item.demo) return
   if (pastSales.sales.some((x) => x.title === `${item.title} (sold here ${item.soldAt?.slice(0, 10)})`)) return
   pastSales.sales.push({ title: `${item.title} (sold here ${item.soldAt?.slice(0, 10)})`, price: item.soldPrice, soldDate: item.soldAt?.slice(0, 10) ?? '', category: item.category ?? '' })
 }

@@ -51,7 +51,7 @@
 
 <div class="hero card" style="padding:12px">
   <img id="photo" alt="" hidden>
-  <div><div class="t" id="title">Loading…</div><div class="price" id="price"></div></div>
+  <div><div class="t" id="title">Loading…</div><div class="price" id="price"></div><div id="photoCredit"></div></div>
 </div>
 
 <section id="join" hidden>
@@ -94,6 +94,7 @@ function renderItem(i) {
   $('title').textContent = i.title
   $('price').textContent = money(i.listPrice)
   if (i.hasPhoto) { $('photo').src = `/api/items/${i.id}/photo`; $('photo').hidden = false }
+  $('photoCredit').replaceChildren(...[photoCredit(i.credit)].filter(Boolean))
   const chips = quickOffers(i.listPrice)
   $('chips').replaceChildren(...chips.map((v) => el('button', { type: 'button', textContent: money(v), onclick: () => send(`I'll give you ${money(v)}.`, `${money(v)}. Final offer `) })))
 }

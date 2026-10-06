@@ -4,6 +4,8 @@
 export type Item = {
   id: string
   shopId?: string // missing = the main (owner's) shop
+  demo?: boolean // seeded demo item: restocks after it sells, never feeds pricing history
+  credit?: { author: string; license: string; source: string } // photo attribution (CC-licensed demo photos)
   title: string
   description: string
   listPrice: number

@@ -37,6 +37,10 @@ window.api = async (path, opts = {}, token) => {
   }
 }
 
+// Photo attribution for CC-licensed demo photos (the license requires author, license and source).
+window.photoCredit = (c) => (c ? el('div', { className: 'credit' }, 'Photo: ',
+  el('a', { href: c.source, target: '_blank', rel: 'noopener', textContent: c.author }), ` · ${c.license} · Wikimedia Commons`) : null)
+
 window.money = (n) => (n == null ? '—' : '$' + (Number.isInteger(n) ? n : Number(n).toFixed(2)))
 
 window.clock = (ts) => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
